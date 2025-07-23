@@ -7,9 +7,11 @@ export default function App() {
   const [rate, setRate] = useState('');
   const [years, setYears] = useState('');
   const [monthlyPayment, setMonthlyPayment] = useState(null);
+  const [error, setError] = useState(null);
 
   async function submitMortgage(e) {
     e.preventDefault();
+    setError(null);
     try {
       const response = await fetch('/api/mortgage', {
       method: 'POST',
@@ -20,15 +22,23 @@ export default function App() {
     });
 
     if (!response.ok) {
-      // Handle error
-      const error = await response.json();
-      console.error(error);
+      const errorData = await response.json();
+      console.error(errorData);
       setMonthlyPayment(null);
+      setError(errorData.error || 'An error occurred.');
       return;
     }
     
     const result = await response.json();
     console.log('API result:', result);
+
+    // Defensive check in case server somehow returns NaN
+    if (typeof result.monthlyPayment !== 'number' || isNaN(result.monthlyPayment)) {
+      setMonthlyPayment(null);
+      setError('Calculation failed due to invalid input.');
+      return;
+    }
+
     setMonthlyPayment(result.monthlyPayment);
 
   } catch(err) {
@@ -92,10 +102,10 @@ export default function App() {
         <button type="submit">Calculate</button>
       </form>
 
-      {monthlyPayment && monthlyPayment !== NaN (
+      {monthlyPayment && !isNaN(monthlyPayment) (
         <div style={{ marginTop: '1rem' }}>
           <h2>Result:</h2>
-          <p>Your estimated monthly payment is <strong>${monthlyPayment}</strong></p>
+          <p>Your estimated monthly payment is <strong>${monthlyPayment.toFixed(2)}</strong></p>
         </div>
       )}
     </div>
