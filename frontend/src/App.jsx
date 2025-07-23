@@ -1,17 +1,82 @@
 import { useState } from 'react';
+import { useForm } from 'react-hook-form'
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers'
 import './App.css';
 
 export default function App() {
-  const [loanAmount, setLoanAmount] = useState('');
-  const [downPayment, setDownPayment] = useState('');
-  const [rate, setRate] = useState('');
-  const [term, setTerm] = useState('');
-  const [monthlyPayment, setMonthlyPayment] = useState(null);
-  const [error, setError] = useState(null);
+
+  const mortgageSchema = z.object({
+    loanAmount: z.coerce.number().positive("Loan amount must be a positive number"),
+    downPayment: z
+      .union([
+        z.string().length(0), //allows blank field
+        z.coerce.number().min(0, "Down payment must be a positive number")
+      ])
+      .optional(),
+    rate: z.coerce.number().positive("Interest rate must be a positive number"),
+    term: z.coerce.int().positive("Term must be a positive number"),
+  });
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(mortgageSchema)
+  });
+
+  const[payment, setPayment] = useState(null);
+  const[error, setError] = useState(null);
+
+  async function onSubmit(data) {
+    setError(null);
+    
+    try {
+      const response = fetch('api/mortgage', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      
+    } catch {
+
+    }
+  }
 
   async function submitMortgage(e) {
     e.preventDefault();
     setError(null);
+
+    //parse inputs as numbers
+    const loan = parseFloat(loanAmount);
+    const down = parseFloat(downPayment);
+    const interest = parseFloat(rate);
+    const years = parseInt(term,10);
+
+    //validate inputs
+    if (isNaN(loan) || loan <= 0) {
+      setError("Loan amount must be a positive number");
+      return;
+    }
+    if (downPayment.trim() !== '') {
+      if (isNaN(down) || down <= 0) {
+        setError("If a down payment is set, it must be 0 or a positive number.");
+        return;
+      }
+    }
+    if (isNaN(interest) || interest <= 0) {
+      setError("Interest must be a positive number");
+      return;
+    }
+    if (isNaN(years) || years <= 0) {
+      setError("Term must be a positive number.");
+      return;
+    }
+
     try {
       const response = await fetch('/api/mortgage', {
       method: 'POST',
@@ -61,7 +126,6 @@ export default function App() {
               type="number"
               value={downPayment}
               onChange={(e) => setDownPayment(e.target.value)}
-              required
             />
           </label>
         </div>
