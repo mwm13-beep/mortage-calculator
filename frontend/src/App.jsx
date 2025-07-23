@@ -110,7 +110,7 @@ export default function App() {
         </div>
       )}
 
-      {monthlyPayment !== null && !error && (
+      {monthlyPayment !== null && (
         <div style={{ marginTop: '1rem' }}>
           <h2>Result:</h2>
           <p>Your estimated monthly payment is <strong>${monthlyPayment}</strong></p>
