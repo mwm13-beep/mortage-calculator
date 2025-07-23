@@ -22,7 +22,6 @@ export default function App() {
     });
 
     const result = await response.json();
-    console.log('API result:', result);
 
     if (typeof result.monthlyPayment === 'number' && !isNaN(result.monthlyPayment)) {
       setMonthlyPayment(result.monthlyPayment);
