@@ -8,10 +8,10 @@ export default function handler(req, res) {
 
     // ✅ Input validation
     if (
-      typeof loanAmount !== 'number' ||
-      typeof downPayment !== 'number' ||
-      typeof rate !== 'number' ||
-      typeof term !== 'number'
+      typeof loanAmount !== 'number' || principal <= 0 ||
+      typeof downPayment !== 'number' || downPayment <= 0||
+      typeof rate !== 'number' || rate <= 0 ||
+      typeof term !== 'number' || term <= 0
     ) {
       return res.status(400).json({ error: 'Invalid input data types' });
     }
