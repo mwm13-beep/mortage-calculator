@@ -39,10 +39,10 @@ export default function App() {
       return;
     }
 
-    setMonthlyPayment(result.monthlyPayment);
-
   } catch(err) {
-    console.error("Network or parsing error: ", err);
+      console.error("Network or parsing error:", err);
+      setMonthlyPayment(null);
+      setError('A network or parsing error occurred.');
   }
 }
 
@@ -102,12 +102,19 @@ export default function App() {
         <button type="submit">Calculate</button>
       </form>
 
-      {monthlyPayment && !isNaN(monthlyPayment) (
+      {error && (
+        <div style={{ color: 'red', marginTop: '1rem' }}>
+          <strong>Error:</strong> {error}
+        </div>
+      )}
+
+      {monthlyPayment !== null && !error && (
         <div style={{ marginTop: '1rem' }}>
           <h2>Result:</h2>
-          <p>Your estimated monthly payment is <strong>${monthlyPayment.toFixed(2)}</strong></p>
+          <p>Your estimated monthly payment is <strong>${monthlyPayment}</strong></p>
         </div>
       )}
     </div>
+    
   );
 }
