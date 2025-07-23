@@ -18,7 +18,7 @@ export default function App() {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({principal, downpayment, rate, years, monthlyPayment}),
+      body: JSON.stringify({loanAmount, downpayment, rate, term, monthlyPayment}),
     });
 
     if (!response.ok) {
@@ -115,6 +115,6 @@ export default function App() {
         </div>
       )}
     </div>
-    
+
   );
 }
