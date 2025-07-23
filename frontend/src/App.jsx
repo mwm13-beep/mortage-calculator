@@ -1,14 +1,6 @@
 import { useState } from 'react';
 import './App.css';
 
-function calculateMonthlyPayment(principal, downpayment, annualRate, years) {
-  const loanAmount = principal - downpayment;
-  const monthlyRate = annualRate / 100 / 12;
-  const months = years * 12;
-  return (loanAmount * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -months));
-}
-
-
 export default function App() {
   const [principal, setPrincipal] = useState('');
   const [downpayment, setDownPayment] = useState('');
@@ -16,21 +8,36 @@ export default function App() {
   const [years, setYears] = useState('');
   const [monthlyPayment, setMonthlyPayment] = useState(null);
 
-  const handleSubmit = (e) => {
+  async function submitMortgage(e) {
     e.preventDefault();
-    const payment = calculateMonthlyPayment(
-      parseFloat(principal),
-      parseFloat(downpayment),
-      parseFloat(rate),
-      parseInt(years)
-    );
-    setMonthlyPayment(payment.toFixed(2));
-  };
+    try {
+      const response = await fetch('/api/mortgage', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({principal, downpayment, rate, years, monthlyPayment}),
+  });
+
+  if (!response.ok) {
+    // Handle error
+    const error = await response.json();
+    console.error(error);
+    return;
+  }
+    
+  const result = await response.json();
+  console.log('API result:', result);
+  setMonthlyPayment(result.monthlyPayment);
+  } catch(err) {
+    console.error("Network or parsing error: ", err);
+  }
+}
 
   return (
     <div style={{ padding: '2rem', maxWidth: '500px', margin: 'auto' }}>
       <h1>Mortgage Calculator</h1>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={submitMortgage}>
         <div>
           <label>
             Loan Amount ($):
