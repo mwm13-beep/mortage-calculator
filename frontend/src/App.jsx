@@ -3,7 +3,7 @@ import './App.css';
 
 export default function App() {
   const [loanAmount, setLoanAmount] = useState('');
-  const [downpayment, setDownPayment] = useState('');
+  const [downPayment, setDownPayment] = useState('');
   const [rate, setRate] = useState('');
   const [term, setTerm] = useState('');
   const [monthlyPayment, setMonthlyPayment] = useState(null);
@@ -18,7 +18,7 @@ export default function App() {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({loanAmount, downpayment, rate, term, monthlyPayment}),
+      body: JSON.stringify({loanAmount, downPayment, rate, term, monthlyPayment}),
     });
 
     if (!response.ok) {
@@ -67,7 +67,7 @@ export default function App() {
             Down Payment ($):
             <input
               type="number"
-              value={downpayment}
+              value={downPayment}
               onChange={(e) => setDownPayment(e.target.value)}
               required
             />

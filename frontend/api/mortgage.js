@@ -9,15 +9,15 @@ export default function handler(req, res) {
     const rate = Number(req.body.rate);
     const term = Number(req.body.term);
 
-    // ✅ Input validation
-    // if (
-    //   !Number.isFinite(loanAmount) || loanAmount <= 0 ||
-    //   !Number.isFinite(downPayment) || downPayment < 0||
-    //   !Number.isFinite(rate) || rate <= 0 ||
-    //   !Number.isFinite(term) || term <= 0
-    // ) {
-    //   return res.status(400).json({ error: 'Invalid input data types' });
-    // }
+   // ✅ Input validation
+    if (
+      !Number.isFinite(loanAmount) || loanAmount <= 0 ||
+      !Number.isFinite(downPayment) || downPayment < 0||
+      !Number.isFinite(rate) || rate <= 0 ||
+      !Number.isFinite(term) || term <= 0
+    ) {
+      return res.status(400).json({ error: 'Invalid input data types' });
+    }
 
     // ✅ Run your calculation logic (placeholder)
     const principal = loanAmount - downPayment;
