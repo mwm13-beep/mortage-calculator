@@ -23,7 +23,7 @@ export default function App() {
 
     const result = await response.json();
     console.log('API result:', result);
-    
+
     if (typeof result.monthlyPayment === 'number' && !isNaN(result.monthlyPayment)) {
       setMonthlyPayment(result.monthlyPayment);
       setError(null);
@@ -104,7 +104,7 @@ export default function App() {
       {monthlyPayment !== null && (
         <div style={{ marginTop: '1rem' }}>
           <h2>Result:</h2>
-          <p>Your estimated monthly payment is <strong>${monthlyPayment}</strong></p>
+          <p>Your estimated monthly payment is <strong>${monthlyPayment.toFixed(2)}</strong></p>
         </div>
       )}
     </div>
