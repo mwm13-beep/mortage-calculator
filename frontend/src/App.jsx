@@ -2,10 +2,10 @@ import { useState } from 'react';
 import './App.css';
 
 export default function App() {
-  const [principal, setPrincipal] = useState('');
+  const [loanAmount, setLoanAmount] = useState('');
   const [downpayment, setDownPayment] = useState('');
   const [rate, setRate] = useState('');
-  const [years, setYears] = useState('');
+  const [term, setTerm] = useState('');
   const [monthlyPayment, setMonthlyPayment] = useState(null);
   const [error, setError] = useState(null);
 
@@ -56,7 +56,7 @@ export default function App() {
             <input
               type="number"
               value={principal}
-              onChange={(e) => setPrincipal(e.target.value)}
+              onChange={(e) => setLoanAmount(e.target.value)}
               required
             />
           </label>
@@ -92,8 +92,8 @@ export default function App() {
             Term (Years):
             <input
               type="number"
-              value={years}
-              onChange={(e) => setYears(e.target.value)}
+              value={term}
+              onChange={(e) => setTerm(e.target.value)}
               required
             />
           </label>          
