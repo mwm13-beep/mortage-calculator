@@ -18,29 +18,20 @@ export default function App() {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({loanAmount, downPayment, rate, term, monthlyPayment}),
+      body: JSON.stringify({loanAmount, downPayment, rate, term}),
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error(errorData);
-      setMonthlyPayment(null);
-      setError(errorData.error || 'An error occurred.');
-      return;
-    }
-    
     const result = await response.json();
     console.log('API result:', result);
-
-    // Defensive check in case server somehow returns NaN
-    if (typeof result.monthlyPayment !== 'number' || isNaN(result.monthlyPayment)) {
+    
+    if (typeof result.monthlyPayment === 'number' && !isNaN(result.monthlyPayment)) {
+      setMonthlyPayment(result.monthlyPayment);
+      setError(null);
+    } else {
       setMonthlyPayment(null);
       setError('Calculation failed due to invalid input.');
-      return;
     }
 
-    console.log(error)
-;
   } catch(err) {
       console.error("Network or parsing error:", err);
       setMonthlyPayment(null);
