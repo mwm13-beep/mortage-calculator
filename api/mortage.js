@@ -4,14 +4,17 @@ export default function handler(req, res) {
   }
 
   try {
-    const { loanAmount, downPayment, rate, term } = req.body;
+    const loanAmount = Number(req.body.loanAmount);
+    const downPayment = Number(req.body.downPayment);
+    const rate = Number(req.body.rate);
+    const term = Number(req.body.term);
 
     // ✅ Input validation
     if (
-      typeof loanAmount !== 'number' || loanAmount <= 0 ||
-      typeof downPayment !== 'number' || downPayment <= 0||
-      typeof rate !== 'number' || rate <= 0 ||
-      typeof term !== 'number' || term <= 0
+      !Number.isFinite(loanAmount) || loanAmount <= 0 ||
+      !Number.isFinite(downPayment) || downPayment < 0||
+      !Number.isFinite(rate) || rate <= 0 ||
+      !Number.isFinite(term) || term <= 0
     ) {
       return res.status(400).json({ error: 'Invalid input data types' });
     }

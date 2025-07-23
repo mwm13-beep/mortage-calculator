@@ -6,7 +6,7 @@ export default function App() {
   const [downpayment, setDownPayment] = useState('');
   const [rate, setRate] = useState('');
   const [years, setYears] = useState('');
-  const [monthlyPayment, setMonthlyPayment] = useState(null);
+  const [monthlyPayment, setMonthlyPayment] = useState(0);
 
   async function submitMortgage(e) {
     e.preventDefault();
@@ -17,18 +17,20 @@ export default function App() {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({principal, downpayment, rate, years, monthlyPayment}),
-  });
+    });
 
-  if (!response.ok) {
-    // Handle error
-    const error = await response.json();
-    console.error(error);
-    return;
-  }
+    if (!response.ok) {
+      // Handle error
+      const error = await response.json();
+      console.error(error);
+      alert(error.error);
+      return;
+    }
     
-  const result = await response.json();
-  console.log('API result:', result);
-  setMonthlyPayment(result.monthlyPayment);
+    const result = await response.json();
+    console.log('API result:', result);
+    setMonthlyPayment(result.monthlyPayment);
+
   } catch(err) {
     console.error("Network or parsing error: ", err);
   }
