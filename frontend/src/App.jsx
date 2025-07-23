@@ -39,6 +39,8 @@ export default function App() {
       return;
     }
 
+    console.log(error)
+;
   } catch(err) {
       console.error("Network or parsing error:", err);
       setMonthlyPayment(null);
