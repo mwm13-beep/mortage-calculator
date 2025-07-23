@@ -55,7 +55,7 @@ export default function App() {
             Loan Amount ($):
             <input
               type="number"
-              value={principal}
+              value={loanAmount}
               onChange={(e) => setLoanAmount(e.target.value)}
               required
             />
