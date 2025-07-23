@@ -6,7 +6,7 @@ export default function App() {
   const [downpayment, setDownPayment] = useState('');
   const [rate, setRate] = useState('');
   const [years, setYears] = useState('');
-  const [monthlyPayment, setMonthlyPayment] = useState(0);
+  const [monthlyPayment, setMonthlyPayment] = useState(null);
 
   async function submitMortgage(e) {
     e.preventDefault();
@@ -23,7 +23,7 @@ export default function App() {
       // Handle error
       const error = await response.json();
       console.error(error);
-      alert(error.error);
+      setMonthlyPayment(null);
       return;
     }
     
@@ -92,7 +92,7 @@ export default function App() {
         <button type="submit">Calculate</button>
       </form>
 
-      {monthlyPayment && (
+      {monthlyPayment && monthlyPayment !== NaN (
         <div style={{ marginTop: '1rem' }}>
           <h2>Result:</h2>
           <p>Your estimated monthly payment is <strong>${monthlyPayment}</strong></p>
