@@ -8,7 +8,7 @@ export default function handler(req, res) {
 
     // ✅ Input validation
     if (
-      typeof loanAmount !== 'number' || principal <= 0 ||
+      typeof loanAmount !== 'number' || loanAmount <= 0 ||
       typeof downPayment !== 'number' || downPayment <= 0||
       typeof rate !== 'number' || rate <= 0 ||
       typeof term !== 'number' || term <= 0
