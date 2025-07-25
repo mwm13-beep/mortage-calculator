@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form'
-import { mortgageSchema } from '../shared/schemas/mortgageSchema'
+import { mortgageSchema } from '../shared/schemas/mortgageSchema.js'
 import { zodResolver } from '@hookform/resolvers/zod'
 import './App.css';
 
@@ -44,11 +44,7 @@ export default function App() {
       }
     } catch(err) {
         if (process.env.NODE_ENV !== 'production') {
-          console.error("Fetch to /api/mortgage failed: ", {
-            status: response.status,
-            body: data,
-            error: err,
-          });
+          console.error("Fetch to /api/mortgage failed: ", err);
         }
         setPayment(null);
     }

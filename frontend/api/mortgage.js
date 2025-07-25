@@ -1,4 +1,4 @@
-import { mortgageSchema } from "../shared/schemas/mortgageSchema";
+import { mortgageSchema } from "../shared/schemas/mortgageSchema.js";
 import { flattenError } from "zod";
 
 export default function handler(req, res) {
@@ -19,7 +19,8 @@ export default function handler(req, res) {
       return res.status(400).json({ error: "Invalid input" });
     }
 
-    // ✅ Run your calculation logic (placeholder)
+    const { loanAmount, downPayment = 0, rate, term } = result.data;
+
     const principal = loanAmount - downPayment;
     const monthlyRate = rate / 100 / 12;
     const numberOfPayments = term * 12;
@@ -29,7 +30,10 @@ export default function handler(req, res) {
 
     return res.status(200).json({ payment });
   } catch (err) {
-    console.error(err);
+    console.error('Backend error caught in /api/mortgage handler: ', {
+      message: err.message,
+      stack: err.stack,
+    });
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
