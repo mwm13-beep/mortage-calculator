@@ -45,3 +45,16 @@ form > div {
   margin-bottom: .4rem;
 }
 
+.container {
+  padding: '2rem'; 
+  max-width: '500px'; 
+  margin: 'auto';
+}
+
+.error-text {
+  color: 'red';
+}
+
+.result {
+  margin-top: '1rem';
+}

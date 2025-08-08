@@ -53,7 +53,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '500px', margin: 'auto' }}>
+    <div className="container">
       <h1>Mortgage Calculator</h1>
       <form onSubmit={handleSubmit(onSubmit)}>
         <div>
@@ -63,9 +63,9 @@ export default function App() {
               type="number" 
               step="0.01"
               min="0"
-              {...register('loanAmount')}
+              {...register("loanAmount")}
               aria-invalid={!!errors.loanAmount} />
-            {errors.loanAmount && <p style={{ color: 'red' }}>{errors.loanAmount.message}</p>}
+            {errors.loanAmount && <p className="error-text">{errors.loanAmount.message}</p>}
           </label>
         </div>
         <br />
@@ -76,10 +76,10 @@ export default function App() {
               type="number" 
               step="0.01"
               min="0"
-              inputMode='decimal'
-              {...register('downPayment')}
+              inputMode="decimal"
+              {...register("downPayment")}
               aria-invalid={!!errors.downPayment} />
-            {errors.downPayment && <p style={{ color: 'red' }}>{errors.downPayment.message}</p>}
+            {errors.downPayment && <p className="error-text">{errors.downPayment.message}</p>}
           </label>
         </div>
         <br />
@@ -91,10 +91,10 @@ export default function App() {
               step="0.01"
               min="0"
               max="100"
-              inputMode='decimal'
+              inputMode="decimal"
               {...register('rate')}
               aria-invalid={!!errors.rate} />
-            {errors.rate && <p style={{ color: 'red' }}>{errors.rate.message}</p>}
+            {errors.rate && <p className="error-text">{errors.rate.message}</p>}
           </label>
         </div>
         <br />
@@ -106,9 +106,9 @@ export default function App() {
               step="1"
               min="1"
               max="50"
-              inputMode='numeric'
+              inputMode="numeric"
               {...register('term')} />
-            {errors.term && <p style={{ color: 'red' }}>{errors.term.message}</p>}
+            {errors.term && <p className="error-text">{errors.term.message}</p>}
           </label>          
         </div>
         <br />
@@ -116,7 +116,7 @@ export default function App() {
       </form>
 
       {payment !== null && (
-        <div style={{ marginTop: '1rem' }}>
+        <div class-name="margin-top">
           <h2>Result:</h2>
           <p>Your estimated monthly payment is <strong>${payment.toFixed(2)}</strong></p>
         </div>

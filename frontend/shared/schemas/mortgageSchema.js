@@ -13,8 +13,8 @@ export const mortgageSchema = z.object({
     .transform(round2),
 
   downPayment: z.preprocess(
-    (val) => (val === '' || val == null ? 0 : val),
-    moneyBase.transform(round2) // min 0 already implied by nonnegative()
+    v => (v === '' || v == null ? 0 : v),
+    moneyBase.transform(round2)
   ),
 
   rate: z.coerce.number()
