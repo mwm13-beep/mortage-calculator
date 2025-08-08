@@ -25,7 +25,7 @@ export default function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'CSRF-Token': csrfToken,
+          //'CSRF-Token': csrfToken,
         },
         body: JSON.stringify(data),
       });
