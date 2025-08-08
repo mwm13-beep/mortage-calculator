@@ -5,8 +5,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import './App.css';
 
 export default function App() {
-  console.log('Environment:', import.meta.env.MODE);
-
   const {
     register,
     handleSubmit,
@@ -20,10 +18,14 @@ export default function App() {
   async function onSubmit(data) {
     
     try {
-      const response = await fetch('api/mortgage', {
+
+      //const csrfToken = await fetch('/api/csrf-token').then(res => res.json()).then(data => data.csrfToken);
+
+      const response = await fetch('/api/mortgage', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'CSRF-Token': csrfToken,
         },
         body: JSON.stringify(data),
       });
@@ -57,7 +59,12 @@ export default function App() {
         <div>
           <label>
             Loan Amount ($):
-            <input type="number" step="0.01" {...register('loanAmount')} />
+            <input 
+              type="number" 
+              step="0.01"
+              min="0"
+              {...register('loanAmount')}
+              aria-invalid={!!errors.loanAmount} />
             {errors.loanAmount && <p style={{ color: 'red' }}>{errors.loanAmount.message}</p>}
           </label>
         </div>
@@ -65,7 +72,13 @@ export default function App() {
         <div>
           <label>
             Down Payment ($):
-            <input type="number" step="0.01" {...register('downPayment')} />
+            <input 
+              type="number" 
+              step="0.01"
+              min="0"
+              inputMode='decimal'
+              {...register('downPayment')}
+              aria-invalid={!!errors.downPayment} />
             {errors.downPayment && <p style={{ color: 'red' }}>{errors.downPayment.message}</p>}
           </label>
         </div>
@@ -73,7 +86,14 @@ export default function App() {
         <div>
           <label>
             Interest Rate (% per year):
-            <input type="number" step="0.01" {...register('rate')} />
+            <input 
+              type="number" 
+              step="0.01"
+              min="0"
+              max="100"
+              inputMode='decimal'
+              {...register('rate')}
+              aria-invalid={!!errors.rate} />
             {errors.rate && <p style={{ color: 'red' }}>{errors.rate.message}</p>}
           </label>
         </div>
@@ -81,7 +101,13 @@ export default function App() {
         <div>
           <label>
             Term (Years):
-            <input type="number" step="0.01" {...register('term')} />
+            <input 
+              type="number" 
+              step="1"
+              min="1"
+              max="50"
+              inputMode='numeric'
+              {...register('term')} />
             {errors.term && <p style={{ color: 'red' }}>{errors.term.message}</p>}
           </label>          
         </div>
