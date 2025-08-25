@@ -1,12 +1,47 @@
-# React + Vite
+Mortgage Calculator (Web)
+Quick Summary
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This app calculates mortgage payments, schedules, and summaries with a focus on Canadian defaults. Key concepts are modeled explicitly:
 
-Currently, two official plugins are available:
+Amortization period (e.g., 25–30 years): total time to pay off the mortgage.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Term (e.g., 1–5 years): length of the current contract/rate with the lender.
 
-## Expanding the ESLint configuration
+Calculations use standard amortization formulas; outputs include a breakdown (principal/interest over time) and API fields suitable for PDF/Excel export.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+By default, the app validates inputs according to Canadian rules (see below) but is being refactored to support region switching so other jurisdictions can be added without changing validation code.
+
+Mortgage Rules (Canada)
+Core Concepts
+
+Amortization vs. Term
+Canada’s financial consumer agency explains these as distinct: amortization is the total payoff horizon; term is the current contract window (often 1–5 years). 
+Canada.ca
+itools-ioutils.fcac-acfc.gc.ca
+
+Regulatory/Policy Guardrails
+
+Maximum amortization (insured mortgages)
+Federal changes (Budget 2024) allow 30‑year amortizations for first‑time buyers of newly built homes; otherwise, insured mortgages typically cap at 25 years. 
+Canada.ca
++2
+Canada.ca
++2
+
+Uninsured mortgages (≥20% down)
+Lender policy sets the max amortization (commonly up to 30 years). The FCAC guidance differentiates insured vs. uninsured treatment. 
+Canada.ca
+
+Stress test / Minimum Qualifying Rate (MQR)
+For uninsured mortgages, OSFI’s MQR guidance: qualify at the greater of contract rate + 2% or 5.25% (with certain renewal exceptions introduced in 2024). 
+OSFI
++1
+
+CMHC programs
+CMHC program pages reflect the policy environment (e.g., Home Start indicates max amortization 30 years, program‑specific criteria). 
+cmhc-schl.gc.ca
+
+Why terms are separate from amortization in Canada
+Canadian mortgages commonly pair a long amortization (e.g., 25 years) with a short term (1–5 years) so conditions can be renegotiated as markets change—unlike the U.S., where the term often equals the amortization. (For user education copy, cite FCAC and Department of Finance releases above.) 
+Canada.ca
++1
