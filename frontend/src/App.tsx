@@ -18,14 +18,19 @@ import {
 } from "./domain/numberFormats";
 
 // ----- Types derived from the factory schema -----
-// Schema type (runtime value, but we use it for type extraction)
 type Schema = ReturnType<typeof createMortgageSchema>;
-
-// RHF "form values" = Zod INPUT (pre-parse, often strings/unknown)
 type FormValues = z.input<Schema>;
-
-// Values you get inside onSubmit = Zod OUTPUT (post-parse, numbers)
 type ResolvedValues = z.output<Schema>;
+
+// New: shape for the on-demand breakdown panel
+type Breakdown = {
+  principal: number;            // P
+  annualRatePercent: number;    // sanitized %
+  monthlyRateDecimal: number;   // r
+  paymentsPerYear: number;      // 12
+  totalPayments: number;        // n
+  paymentViaFormula: number;    // computed from formula (for display parity)
+};
 
 export default function App() {
   // Fixed CA context for now; can be made dynamic later
@@ -52,7 +57,15 @@ export default function App() {
     reValidateMode: "onChange",
   });
 
+  //type checker helper
+  function isNumber(value: unknown): value is number {
+    return typeof value === "number" && !isNaN(value);
+  }
+
   const [payment, setPayment] = useState<number | null>(null);
+  const [amortization, setAmortization] = useState<number | null>(null);
+  const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   async function onSubmit(data: ResolvedValues) {
     try {
@@ -81,16 +94,19 @@ export default function App() {
 
       const result = await response.json();
 
-      if (typeof result.payment === "number" && !isNaN(result.payment)) {
+      if (isNumber(result.payment) && isNumber(result.amortization)) {
         setPayment(result.payment);
+        setAmortization(result.amortization);
       } else {
         setPayment(null);
+        setAmortization(null);
       }
     } catch (err) {
       if (import.meta.env.DEV) {
         console.error("Fetch to /api/mortgage failed:", err);
       }
       setPayment(null);
+      setAmortization(null);
     }
   }
 
@@ -199,12 +215,46 @@ export default function App() {
         <button type="submit">Calculate</button>
       </form>
 
-      {payment !== null && (
+      {payment !== null && amortization !== null && (
         <div className="margin-top">
           <h2>Result:</h2>
           <p>
             Your estimated monthly payment is{" "}
             <strong>${payment.toFixed(2)}</strong>
+          </p>
+          <p>
+            The amortization period is <strong>{amortization} years</strong>
+            {" "}({amortization * 12} total payments).
+          </p>
+        </div>
+      )}
+
+      {/* Toggle button to show how we calculated it */}
+      <button
+        type="button"
+        onClick={() => setShowBreakdown((v) => !v)}
+        aria-expanded={showBreakdown}
+        className="secondary"
+      >
+        {showBreakdown ? "Hide" : "Show"} breakdown
+      </button>
+      {showBreakdown && breakdown && (
+        <div className="calc-breakdown">
+          <h3>How we calculated your payment</h3>
+          <p><code>Payment = P · r / (1 − (1 + r)<sup>−n</sup>)</code></p>
+          <ul>
+            <li>Principal <strong>P</strong> = ${breakdown.principal.toFixed(2)}</li>
+            <li>Annual rate = {breakdown.annualRatePercent.toFixed(3)}%</li>
+            <li>Monthly rate <strong>r</strong> = { (breakdown.monthlyRateDecimal * 100).toFixed(3) }%</li>
+            <li>Payments per year = {breakdown.paymentsPerYear}</li>
+            <li>Total payments <strong>n</strong> = {breakdown.totalPayments}</li>
+          </ul>
+          <p>
+            Plugging in the numbers gives{" "}
+            <strong>${breakdown.paymentViaFormula.toFixed(2)}</strong>
+            {payment !== null && Math.abs(payment - breakdown.paymentViaFormula) > 0.01
+              ? " (slight difference due to rounding)"
+              : ""}
           </p>
         </div>
       )}
