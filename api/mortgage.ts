@@ -1,21 +1,88 @@
 // frontend/api/mortgage.ts
+if (process.env.FN_INSPECT === '1') {
+  try {
+    const inspector = await import('node:inspector');
+    if (inspector.open(9231, '127.0.0.1', true)) {
+      console.log('Debugger is ready');
+    }
+  } catch {}
+}
+
 import type { VercelRequest, VercelResponse } from "./vercel-types";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-
 import { createMortgageSchema, type JurisdictionCtx } from "../src/schemas/mortgageSchemaFactory";
 import { toCents, fromCents, toMilliPercent } from "../src/domain/numberFormats";
+import { IS_DEV, IS_PROD } from "./env";
 
-// ---- Upstash rate limit ----
-const ratelimit = new Ratelimit({
-  redis: Redis.fromEnv(),
-  limiter: Ratelimit.slidingWindow(10, "60 s"),
-});
+/** ------------------------------------------------------------------ */
+/** Error helpers                                                       */
+/** ------------------------------------------------------------------ */
 
-const ALLOW_ORIGIN = process.env.UI_ORIGIN;
+type ApiErrorCode =
+  | "METHOD_NOT_ALLOWED"
+  | "UNSUPPORTED_MEDIA_TYPE"
+  | "PAYLOAD_TOO_LARGE"
+  | "BAD_REQUEST"
+  | "VALIDATION_ERROR"
+  | "INVALID_PRINCIPAL"
+  | "TOO_MANY_REQUESTS"
+  | "INTERNAL_SERVER_ERROR";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // ---- CORS / preflight ----
+function correlationId(req: VercelRequest) {
+  return (
+    (req.headers["x-vercel-id"] as string | undefined) ||
+    (req.headers["x-request-id"] as string | undefined) ||
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  );
+}
+
+function devDetails(err: unknown) {
+  if (!IS_DEV) return undefined;
+  const base =
+    err instanceof Error
+      ? { message: err.message, name: err.name, stack: err.stack }
+      : { message: String(err) };
+  return base;
+}
+
+function sendError(
+  req: VercelRequest,
+  res: VercelResponse,
+  httpStatus: number,
+  code: ApiErrorCode,
+  opts?: { msg?: string; extra?: Record<string, unknown>; err?: unknown }
+) {
+  const cid = correlationId(req);
+  // Always log internally (prod or dev)
+  if (opts?.err) {
+    console.error(`[${cid}] ${code}`, opts.msg ?? "", devDetails(opts.err));
+  } else {
+    console.warn(`[${cid}] ${code}`, opts?.msg ?? "", IS_DEV ? opts?.extra ?? {} : undefined);
+  }
+
+  // In prod, 500s are always generic
+  if (IS_PROD && httpStatus >= 500) {
+    res.setHeader("X-Correlation-Id", cid);
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" as const });
+  }
+
+  const body: Record<string, unknown> = { error: code };
+  if (opts?.msg && IS_DEV) body.message = opts.msg;
+  if (opts?.extra && IS_DEV) body.details = opts.extra;
+  if (opts?.err && IS_DEV) body.errorObject = devDetails(opts.err);
+  body.correlationId = cid; // safe to expose
+
+  return res.status(httpStatus).json(body);
+}
+
+/** ------------------------------------------------------------------ */
+/** CORS / headers                                                      */
+/** ------------------------------------------------------------------ */
+
+const ALLOW_ORIGIN = process.env.UI_ORIGIN; // optional explicit allowlist origin
+
+function setCommonHeaders(req: VercelRequest, res: VercelResponse) {
   const origin = req.headers.origin;
   if (origin && ALLOW_ORIGIN && origin === ALLOW_ORIGIN) {
     res.setHeader("Access-Control-Allow-Origin", origin);
@@ -25,50 +92,77 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("Cache-Control", "no-store");
+}
+
+/** ------------------------------------------------------------------ */
+/** Rate limit (strict—no dev bypass)                                  */
+/** ------------------------------------------------------------------ */
+
+let ratelimit: Ratelimit | null = null;
+try {
+  // If misconfigured this will throw and be handled in the request
+  ratelimit = new Ratelimit({
+    redis: Redis.fromEnv(),
+    limiter: Ratelimit.slidingWindow(10, "60 s"),
+  });
+} catch (e) {
+  // Defer to request-time handling so we can respond with correlation id, etc.
+  ratelimit = null;
+}
+
+/** ------------------------------------------------------------------ */
+/** Handler                                                             */
+/** ------------------------------------------------------------------ */
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  setCommonHeaders(req, res);
 
   if (req.method === "OPTIONS") return res.status(204).end();
+  if (req.method !== "POST") {
+    return sendError(req, res, 405, "METHOD_NOT_ALLOWED", { msg: "POST required" });
+  }
+
+  const ctype = String(req.headers["content-type"] || "");
+  if (!ctype.toLowerCase().startsWith("application/json")) {
+    return sendError(req, res, 415, "UNSUPPORTED_MEDIA_TYPE", {
+      msg: "Content-Type must be application/json",
+    });
+  }
+
+  const len = Number(req.headers["content-length"] || 0);
+  if (len && len > 10_000) {
+    return sendError(req, res, 413, "PAYLOAD_TOO_LARGE");
+  }
 
   try {
-    // ---- Method & content-type gates ----
-    if (req.method !== "POST") {
-      return res.status(405).json({ error: "Method not allowed" });
+    // --- Rate limit (fail closed) ---
+    if (!ratelimit) {
+      // Misconfiguration or init error from module load
+      return sendError(req, res, 500, "INTERNAL_SERVER_ERROR", {
+        msg: "Rate limiter unavailable",
+      });
     }
-
-    const ctype = String(req.headers["content-type"] || "");
-    if (!ctype.toLowerCase().startsWith("application/json")) {
-      return res.status(415).json({ error: "Content-Type must be application/json" });
-    }
-
-    // Optional tiny size cap
-    const len = Number(req.headers["content-length"] || 0);
-    if (len && len > 10_000) {
-      return res.status(413).json({ error: "Payload too large" });
-    }
-
-    // ---- Rate limit ----
     const ip =
       (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
       req.socket?.remoteAddress ||
       "unknown";
     const key = `${ip}|${req.headers["user-agent"] ?? ""}`;
-
     const { success, limit, remaining, reset } = await ratelimit.limit(key);
     res.setHeader("X-RateLimit-Limit", String(limit));
     res.setHeader("X-RateLimit-Remaining", String(remaining));
     res.setHeader("X-RateLimit-Reset", String(reset));
 
     if (!success) {
-      return res.status(429).json({ error: "Too many requests, please try again later." });
+      return sendError(req, res, 429, "TOO_MANY_REQUESTS");
     }
 
-    // ---- Parse & validate via schema factory ----
-    const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
-
-    // Derive minimal context from raw values (insured affects max amortization).
-    // If you later add explicit flags to the payload, read them here instead.
+    // ---- Parse/validate with dynamic context ----
+    const body =
+      (req.body && typeof req.body === "object" ? (req.body as Record<string, unknown>) : {}) ||
+      {};
     const loanRaw = Number(body.loanAmount ?? 0);
     const dpRaw = Number(body.downPayment ?? 0);
-    const insured = loanRaw > 0 ? dpRaw / loanRaw < 0.20 : false;
+    const insured = loanRaw > 0 ? dpRaw / loanRaw < 0.2 : false;
 
     const ctx: JurisdictionCtx = {
       code: "CA-default",
@@ -79,48 +173,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const schema = createMortgageSchema(ctx);
     const parsed = schema.safeParse(body);
-
     if (!parsed.success) {
-      if (process.env.NODE_ENV !== "production") {
-        console.error("Validation error:", parsed.error.issues);
-      }
-      return res.status(400).json({ error: "Invalid input" });
+      return sendError(req, res, 400, "VALIDATION_ERROR", {
+        msg: "Request failed input validation",
+        extra: { issues: IS_DEV ? parsed.error.issues : undefined },
+      });
     }
 
     const { loanAmount, downPayment = 0, rate, amortization } = parsed.data;
 
-    // ---- Normalize for stable math (belt & suspenders) ----
+    // ---- Normalize and compute ----
     const principalCents = toCents(loanAmount) - toCents(downPayment);
     if (principalCents <= 0) {
-      return res.status(400).json({ error: "Invalid principal" });
+      return sendError(req, res, 400, "INVALID_PRINCIPAL", {
+        msg: "Loan minus down payment must be positive",
+      });
     }
 
-    // Rate as milli-percent → monthly decimal rate
-    const rMilli = toMilliPercent(rate); // e.g., 5.125% -> 5125
-    const monthlyRate = rMilli / 1_200_000; // 1000 * 100 * 12
-
-    const n = Math.max(1, Math.trunc(Number(amortization) * 12)); // total number of payments
     const principal = fromCents(principalCents);
+    const rMilli = toMilliPercent(rate);
+    const monthlyRate = rMilli / 1_200_000; // 1000 * 100 * 12
+    const n = Math.max(1, Math.trunc(Number(amortization) * 12));
 
-    // ---- Payment calculation uses AMORTIZATION (not term) ----
     const payment =
       monthlyRate === 0
         ? principal / n
         : (principal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -n));
 
+    // Normalize -0 to 0 for display niceness
     const cleanPayment = Object.is(payment, -0) ? 0 : payment;
 
-    // Optional: include fields useful to the client (e.g., amortization)
     return res.status(200).json({
       payment: cleanPayment,
-      amortizationYears: amortization,
-      // contractTermYears: parsed.data.term, // keep term available if you want to display it
+      amortization,
     });
-  } catch (err: any) {
-    console.error("Backend error caught in /api/mortgage handler:", {
-      message: err?.message,
-      stack: err?.stack,
+  } catch (err) {
+    // Unknown/unexpected failure: log + generic 500 in prod, rich info in dev
+    return sendError(req, res, 500, "INTERNAL_SERVER_ERROR", {
+      msg: "Unhandled exception",
+      err,
     });
-    return res.status(500).json({ error: "Internal server error" });
   }
 }

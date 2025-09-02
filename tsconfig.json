@@ -1,10 +1,12 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    // Works for both browser app & serverless functions
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
     "jsx": "react-jsx",
+
     "strict": true,
     "noEmit": true,
     "isolatedModules": true,
@@ -12,13 +14,14 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
 
-    // Important: make Vite env types available on the client
+    // Make Vite and Node globals available to the type system
     "types": ["vite/client", "node"]
   },
   "include": [
     "src",
-    "api",
+    "api",              // your Vercel functions (e.g., api/mortgage.ts)
     "src/vite-env.d.ts",
     "vite.config.*"
-  ]
+  ],
+  "exclude": ["dist", "node_modules"]
 }
