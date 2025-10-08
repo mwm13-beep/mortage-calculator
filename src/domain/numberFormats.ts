@@ -2,20 +2,17 @@
 export type Rounding = "half-up" | "bankers";
 
 /** Deterministic rounding to N decimals using decimal integers to avoid FP drift */
-function roundTo(value: number, decimals: number, mode: Rounding = "half-up"): number {
+export function roundTo(value: number, decimals: number, mode: Rounding = "half-up"): number {
   const factor = 10 ** decimals;
   const x = value * factor;
   if (mode === "bankers") {
-    // Round half to even
     const floor = Math.floor(x);
     const frac = x - floor;
     if (frac > 0.5) return Math.ceil(x) / factor;
     if (frac < 0.5) return Math.floor(x) / factor;
-    // exactly .5 -> to even
-    return (floor % 2 === 0 ? floor : floor + 1) / factor;
+    return (floor % 2 === 0 ? floor : floor + 1) / factor; // half to even
   }
-  // half-up
-  return Math.round(x) / factor;
+  return Math.round(x) / factor; // half-up
 }
 
 export const toCents = (dollars: number, mode: Rounding = "half-up"): number =>

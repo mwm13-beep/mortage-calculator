@@ -1,26 +1,11 @@
-// src/App.tsx
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { createSchemaForRuleset, type InputOf, type OutputOf } from "./schemas/schemaFactory";
+import { RULESETS, type RulesetCode } from "./rulesets";
+import { MortgageOk, MortgageErr } from "../shared/contracts/mortgage";
 
-import {
-  createMortgageSchema,
-  type JurisdictionCtx,
-} from "./schemas/mortgageSchemaFactory";
-import {
-  toCents,
-  fromCents,
-  toMilliPercent,
-  fromMilliPercent,
-} from "./domain/numberFormats";
-
-// ----- Types derived from the factory schema -----
-type Schema = ReturnType<typeof createMortgageSchema>;
-type FormValues = z.input<Schema>;
-type ResolvedValues = z.output<Schema>;
-
-// New: shape for the on-demand breakdown panel
+// shape for the on-demand breakdown panel
 type Breakdown = {
   principal: number;            // P
   annualRatePercent: number;    // sanitized %
@@ -31,78 +16,70 @@ type Breakdown = {
 };
 
 export default function App() {
-  // Fixed CA context for now; can be made dynamic later
-  const ctx: JurisdictionCtx = useMemo(
-    () => ({
-      code: "CA-default",
-      insured: false,
-      firstTimeBuyer: false,
-      newBuild: false,
-    }),
-    []
-  );
+  const [rulesetCode] = useState<RulesetCode>("CA-default");
+  const [payment, setPayment] = useState<number | null>(null);
+  const [amortization, setAmortization] = useState<number | null>(null);
+  const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
-  // Build schema from factory
-  const schema = useMemo(() => createMortgageSchema(ctx), [ctx]);
+  const schema = useMemo(() => createSchemaForRuleset(rulesetCode), [rulesetCode]);
+  type FormValues = InputOf<RulesetCode>;
+  type ResolvedValues = OutputOf<RulesetCode>;
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<FormValues, any, ResolvedValues>({
-    resolver: zodResolver(schema),
-    mode: "onTouched",
-    reValidateMode: "onChange",
-  });
+  const r = RULESETS[rulesetCode];
+
+  // Give RHF the default rulesetCode; keep it synced
+  const { register, handleSubmit, formState: { errors }, setValue } =
+    useForm<FormValues, any, ResolvedValues>({
+      resolver: zodResolver(schema),
+      mode: "onTouched",
+      defaultValues: { rulesetCode }, // important
+    });
+
+  // Ensure rulesetCode is always synced (in case we add a selector later)
+  useEffect(() => {
+    setValue("rulesetCode", rulesetCode);
+  }, [rulesetCode, setValue]);
 
   //type checker helper
   function isNumber(value: unknown): value is number {
     return typeof value === "number" && !isNaN(value);
   }
 
-  const [payment, setPayment] = useState<number | null>(null);
-  const [amortization, setAmortization] = useState<number | null>(null);
-  const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
-  const [showBreakdown, setShowBreakdown] = useState(false);
-
   async function onSubmit(data: ResolvedValues) {
     try {
-      // Normalize values consistently before sending
-      const sanitized: ResolvedValues = {
-        ...data,
-        loanAmount: fromCents(toCents(Number(data.loanAmount))),
-        downPayment: fromCents(toCents(Number(data.downPayment))),
-        rate: fromMilliPercent(toMilliPercent(Number(data.rate))),
-        term: Number(data.term),
-        amortization: Number(data.amortization),
-      };
-
       const response = await fetch("/api/mortgage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sanitized),
+        body: JSON.stringify(data),
       });
 
-      if (!response.ok) {
-        if (import.meta.env.DEV) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        throw new Error();
+      // You already map status codes on the server; still read body defensively.
+      const json = await response.json().catch(() => null);
+
+      // Prefer interpreting body over only response.ok so we can show server error messages.
+      const ok = json && MortgageOk.safeParse(json);
+      if (ok && ok.success) {
+        setPayment(ok.data.payment);
+        setAmortization(ok.data.amortization);
+        return;
       }
 
-      const result = await response.json();
-
-      if (isNumber(result.payment) && isNumber(result.amortization)) {
-        setPayment(result.payment);
-        setAmortization(result.amortization);
-      } else {
+      const err = json && MortgageErr.safeParse(json);
+      if (err && err.success) {
+        // surface friendly message; include correlation id if present
+        if (import.meta.env.DEV) {
+          console.error("API error:", err.data.error, err.data.correlationId);
+        }
         setPayment(null);
         setAmortization(null);
+        return;
       }
-    } catch (err) {
-      if (import.meta.env.DEV) {
-        console.error("Fetch to /api/mortgage failed:", err);
-      }
+
+      // Fallback: unexpected shape
+      throw new Error(`Unexpected response shape (status ${response.status})`);
+    } catch (e) {
+      if (import.meta.env.DEV) console.error("Fetch to /api/mortgage failed:", e);
       setPayment(null);
       setAmortization(null);
     }
@@ -112,106 +89,96 @@ export default function App() {
     <div className="container">
       <h1>Mortgage Calculator</h1>
 
+      {/* hidden rulesetCode — no value prop, RHF owns it */}
+      <input type="hidden" {...register("rulesetCode")} />
+
+      {/* CA extras (quick, explicit for now) */}
+      <label>
+        <input type="checkbox" {...register("firstTimeBuyer")} /> First-time buyer
+      </label>
+      <label>
+        <input type="checkbox" {...register("newBuild")} /> New build
+      </label>
+
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <div>
           <label>
             Loan Amount ($):
             <input
               type="number"
-              step="0.01"
-              min="0"
+              min={r.loanBounds.min}
+              max={r.loanBounds.max}
               inputMode="decimal"
               {...register("loanAmount")}
               aria-invalid={!!errors.loanAmount}
             />
-            {errors.loanAmount && (
-              <p className="error-text">{errors.loanAmount.message as string}</p>
-            )}
+            {errors.loanAmount && <p className="error-text">{String(errors.loanAmount.message)}</p>}
           </label>
         </div>
-
-        <br />
 
         <div>
           <label>
             Down Payment ($):
             <input
               type="number"
-              step="0.01"
-              min="0"
+              min={0}
+              max={r.loanBounds.max}
               inputMode="decimal"
               {...register("downPayment")}
               aria-invalid={!!errors.downPayment}
             />
-            {errors.downPayment && (
-              <p className="error-text">{errors.downPayment.message as string}</p>
-            )}
+            {errors.downPayment && <p className="error-text">{String(errors.downPayment.message)}</p>}
           </label>
         </div>
-
-        <br />
 
         <div>
           <label>
             Interest Rate (% per year):
             <input
               type="number"
-              step="0.01"
-              min="0"
-              max="100"
+              min={r.rateBounds.min}
+              max={r.rateBounds.max}
               inputMode="decimal"
               {...register("rate")}
               aria-invalid={!!errors.rate}
             />
-            {errors.rate && (
-              <p className="error-text">{errors.rate.message as string}</p>
-            )}
+            {errors.rate && <p className="error-text">{String(errors.rate.message)}</p>}
           </label>
         </div>
-
-        <br />
 
         <div>
           <label>
             Term (Years):
             <input
               type="number"
-              step="1"
-              min="1"
-              max="50"
+              min={r.termBoundsYears.min}
+              max={r.termBoundsYears.max}
               inputMode="numeric"
               {...register("term")}
               aria-invalid={!!errors.term}
             />
-            {errors.term && (
-              <p className="error-text">{errors.term.message as string}</p>
-            )}
+            {errors.term && <p className="error-text">{String(errors.term.message)}</p>}
           </label>
         </div>
-
-        <br />
 
         <div>
           <label>
             Amortization (Years):
             <input
               type="number"
-              step="1"
-              min="1"
-              max="50"
+              min={r.termBoundsYears.min}
+              max={r.termBoundsYears.max}
               inputMode="numeric"
               {...register("amortization")}
               aria-invalid={!!errors.amortization}
             />
-            {errors.amortization && (
-              <p className="error-text">{errors.amortization.message as string}</p>
-            )}
+            {errors.amortization && <p className="error-text">{String(errors.amortization.message)}</p>}
           </label>
         </div>
 
-        <br />
         <button type="submit">Calculate</button>
       </form>
+
 
       {payment !== null && amortization !== null && (
         <div className="margin-top">

@@ -11,7 +11,8 @@ if (process.env.FN_INSPECT === '1') {
 import type { VercelRequest, VercelResponse } from "./vercel-types";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { createMortgageSchema, type JurisdictionCtx } from "../src/schemas/mortgageSchemaFactory";
+import { createSchemaForRuleset } from "../src/schemas/schemaFactory";
+import { RULESETS, isRulesetCode } from "../src/rulesets";
 import { toCents, fromCents, toMilliPercent } from "../src/domain/numberFormats";
 import { IS_DEV, IS_PROD } from "./env";
 
@@ -157,22 +158,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // ---- Parse/validate with dynamic context ----
-    const body =
-      (req.body && typeof req.body === "object" ? (req.body as Record<string, unknown>) : {}) ||
-      {};
-    const loanRaw = Number(body.loanAmount ?? 0);
-    const dpRaw = Number(body.downPayment ?? 0);
-    const insured = loanRaw > 0 ? dpRaw / loanRaw < 0.2 : false;
+    const rawBody = (req.body && typeof req.body === "object" ? req.body as Record<string, unknown> : {}) || {};
+    const codeMaybe = rawBody["rulesetCode"];
 
-    const ctx: JurisdictionCtx = {
-      code: "CA-default",
-      insured,
-      firstTimeBuyer: false,
-      newBuild: false,
-    };
-
-    const schema = createMortgageSchema(ctx);
-    const parsed = schema.safeParse(body);
+    const code = isRulesetCode(codeMaybe) ? codeMaybe : "CA-default"; // fallback but still validated
+    const schema = createSchemaForRuleset(code);
+    const parsed = schema.safeParse(rawBody);
     if (!parsed.success) {
       return sendError(req, res, 400, "VALIDATION_ERROR", {
         msg: "Request failed input validation",
@@ -180,33 +171,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const { loanAmount, downPayment = 0, rate, amortization } = parsed.data;
+    const { loanAmount, downPayment = 0, rate, amortization } = parsed.data as any;
+    // NOTE: derived context is enforced by the schema; engine will recompute anyway
 
-    // ---- Normalize and compute ----
+    // ---- Normalize and compute (unchanged math) ----
     const principalCents = toCents(loanAmount) - toCents(downPayment);
     if (principalCents <= 0) {
-      return sendError(req, res, 400, "INVALID_PRINCIPAL", {
-        msg: "Loan minus down payment must be positive",
-      });
+      return sendError(req, res, 400, "INVALID_PRINCIPAL", { msg: "Loan minus down payment must be positive" });
     }
 
     const principal = fromCents(principalCents);
     const rMilli = toMilliPercent(rate);
     const monthlyRate = rMilli / 1_200_000; // 1000 * 100 * 12
     const n = Math.max(1, Math.trunc(Number(amortization) * 12));
-
-    const payment =
-      monthlyRate === 0
-        ? principal / n
-        : (principal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -n));
-
-    // Normalize -0 to 0 for display niceness
+    const payment = monthlyRate === 0 ? principal / n : (principal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -n));
     const cleanPayment = Object.is(payment, -0) ? 0 : payment;
 
-    return res.status(200).json({
-      payment: cleanPayment,
-      amortization,
-    });
+    return res.status(200).json({ payment: cleanPayment, amortization });
   } catch (err) {
     // Unknown/unexpected failure: log + generic 500 in prod, rich info in dev
     return sendError(req, res, 500, "INTERNAL_SERVER_ERROR", {
