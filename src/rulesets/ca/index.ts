@@ -7,8 +7,11 @@ const extras = z.object({
   newBuild: z.coerce.boolean().default(false),
 });
 
-const isInsured = (loan: number, dp: number) =>
-  loan > 0 ? dp / loan < 0.2 : false;
+const computeDerived = (i: BaseInput & z.infer<typeof extras>) => ({
+  insured: i.loanAmount > 0 ? i.downPayment / i.loanAmount < 0.2 : false,
+  firstTimeBuyer: i.firstTimeBuyer,
+  newBuild: i.newBuild,
+});
 
 export const caDefault: RulesetShape<typeof extras> = {
   code: "CA-default",
@@ -21,14 +24,10 @@ export const caDefault: RulesetShape<typeof extras> = {
 
   extrasSchema: extras,
 
-  deriveCtx: ({ loanAmount, downPayment, firstTimeBuyer, newBuild }) => ({
-    insured: isInsured(loanAmount, downPayment),
-    firstTimeBuyer,
-    newBuild,
-  }),
+  deriveCtx: computeDerived,
 
-  maxAmortizationYears: ({ loanAmount, downPayment, firstTimeBuyer, newBuild }) => {
-    const insured = isInsured(loanAmount, downPayment);
+  maxAmortizationYears: (i) => {
+    const { insured, firstTimeBuyer, newBuild } = computeDerived(i);
     if (insured && firstTimeBuyer && newBuild) return 30; // insured new build eligible
     return insured ? 25 : 30;
   },
