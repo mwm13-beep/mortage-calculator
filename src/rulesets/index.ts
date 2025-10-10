@@ -1,4 +1,4 @@
-import { caDefault } from "./ca"; // you’ll add in Task 2
+import { caDefault } from "./ca";
 
 export const RULESETS = {
   "CA-default": caDefault,
@@ -7,3 +7,5 @@ export const RULESETS = {
 export type RulesetCode = keyof typeof RULESETS;
 export const isRulesetCode = (v: unknown): v is RulesetCode =>
   typeof v === "string" && v in RULESETS;
+
+export type AnyBuiltRuleset = typeof RULESETS[RulesetCode];

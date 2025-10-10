@@ -1,6 +1,5 @@
 import type { z } from "zod";
-
-export type RoundingMode = "half-up" | "bankers";
+import { RoundingMode } from "../engine/rounding"
 
 export type RoundingPolicy = {
   moneyDecimals: number;   // e.g., 2
@@ -17,7 +16,9 @@ export type BaseInput = {
   amortization: number;   // years
 };
 
-export type RulesetShape<E extends z.ZodObject<any> = z.ZodObject<any>> = {
+export type RulesetShape<
+  E extends z.ZodObject<any> = z.ZodObject<any>,
+  > = {
   code: string;
   currency: string;
   paymentsPerYear: number;
@@ -25,13 +26,26 @@ export type RulesetShape<E extends z.ZodObject<any> = z.ZodObject<any>> = {
   rateBounds: { min: number; max: number };
   termBoundsYears: { min: number; max: number };
   rounding: RoundingPolicy;
-
-  /** Extra user inputs for this ruleset (or z.object({}) if none) */
   extrasSchema: E;
-
-  /** Compute derived context used by rules (e.g., insured in CA) */
-  deriveCtx: (i: BaseInput & z.infer<E>) => Record<string, unknown>;
-
-  /** Max amortization based on derived ctx + extras */
-  maxAmortizationYears: (i: BaseInput & z.infer<E>) => number;
 };
+
+export type RoundingFns = {
+  money: (v: number) => number;
+  ratePct: (v: number) => number;
+  annualPctToPeriodicDecimal: (annualPct: number, paymentsPerYear: number) => number;
+};
+
+export type BuiltRuleset<E extends z.ZodObject<any> = z.ZodObject<any>> =
+  RulesetShape<E> & { 
+    roundingFns: RoundingFns,
+    plugin?: AnyRulesetPlugin,
+  };
+
+export type RulesetPlugin<Input, Result> = Partial<{
+  preCompute: (i: Input) => { derived?: Record<string, unknown>, input?: Input };
+  adjustPrincipal: (principal: number, i: Input, derived: Record<string, unknown>) => number;
+  capAmortization: (years: number, i: Input, derived: Record<string, unknown>) => number;
+  postCompute: (r: Result, i: Input, derived: Record<string, unknown>) => Result;
+}>;
+
+export type AnyRulesetPlugin = RulesetPlugin<any, any>;

@@ -1,22 +1,19 @@
+// src/schemas/schemaFactory.ts
 import { z } from "zod";
 import { RULESETS, type RulesetCode } from "../rulesets";
-import type { RulesetShape } from "../rulesets/types";
-import { roundTo } from "../domain/numberFormats";
+import type { BuiltRuleset } from "../rulesets/types";
 
-function baseSchemaFor(r: RulesetShape) {
-  const mDec = r.rounding.moneyDecimals, mMode = r.rounding.moneyMode;
-  const rDec = r.rounding.rateDecimals,  rMode = r.rounding.rateMode;
-
-  const money = z.coerce.number()
+function baseSchemaFor(r: BuiltRuleset) {
+  const moneyNumber = z.coerce.number()
     .nonnegative("Must be positive")
     .max(r.loanBounds.max, "Loan amount is too high")
     .min(r.loanBounds.min, "Loan amount is too small")
-    .transform(v => roundTo(v, mDec, mMode));
+    .transform((v) => r.roundingFns.money(v));
 
   const rate = z.coerce.number()
     .nonnegative("Interest rate must be zero or positive")
     .max(r.rateBounds.max, "Interest rate is too high")
-    .transform(v => roundTo(v, rDec, rMode));
+    .transform((v) => r.roundingFns.ratePct(v));
 
   const yearsIn = z.coerce.number()
     .int("Must be a whole number")
@@ -25,33 +22,22 @@ function baseSchemaFor(r: RulesetShape) {
 
   return z.object({
     rulesetCode: z.literal(r.code),
-    loanAmount: money,
-    downPayment: z.preprocess(v => (v === "" || v == null ? 0 : v), money),
+    loanAmount: moneyNumber,
+    downPayment: z.preprocess(v => (v === "" || v == null ? 0 : v), moneyNumber),
     rate,
     term: yearsIn,
     amortization: yearsIn,
   });
 }
 
-export function createSchemaForRuleset(code: RulesetCode) {
-  const ruleset = RULESETS[code];
-  const base = baseSchemaFor(ruleset).strict();      // lock unknown keys for the base fields
-  const schema = base.and(ruleset.extrasSchema);     // intersection (aka z.intersection)
+export function createSchemaForRuleset<C extends RulesetCode>(code: C) {
+  const ruleset = RULESETS[code];                 // <-- BuiltRuleset
+  const base = baseSchemaFor(ruleset).strict();   // lock unknown base keys
+  const schema = base.and(ruleset.extrasSchema);  // intersection
 
   return schema.superRefine((data, ctx) => {
-    // cross-field: DP ≤ loan
     if (data.downPayment > data.loanAmount) {
       ctx.addIssue({ code: "custom", path: ["downPayment"], message: "Down payment cannot exceed loan amount" });
-    }
-    // insured + cap (jurisdiction-specific but derived safely here)
-    // const derived = ruleset.deriveCtx(data as any);
-    const maxA = ruleset.maxAmortizationYears(data as any);
-    if (data.amortization > maxA) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["amortization"],
-        message: `Amortization exceeds ${maxA} years for selected options`,
-      });
     }
   });
 }
