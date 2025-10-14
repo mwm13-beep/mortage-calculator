@@ -1,7 +1,3 @@
-useEffect(() => {
-  console.log("[UI] App mounted");
-}, []);
-
 import { useMemo, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,6 +16,11 @@ type Breakdown = {
 };
 
 export default function App() {
+
+  useEffect(() => {
+    console.log("[UI] App mounted");
+  }, []);
+
   const [rulesetCode] = useState<RulesetCode>("CA-default");
   const [payment, setPayment] = useState<number | null>(null);
   const [amortization, setAmortization] = useState<number | null>(null);
