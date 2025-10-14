@@ -36,10 +36,11 @@ export default function App() {
   const r = RULESETS[rulesetCode];
 
   // Give RHF the default rulesetCode; keep it synced
-  const { register, handleSubmit, formState: { errors }, setValue } =
+  const { register, handleSubmit, formState: { errors }, setValue, getValues } =
     useForm<FormValues, any, ResolvedValues>({
       resolver: zodResolver(schema),
       mode: "onTouched",
+      criteriaMode: "all",
       defaultValues: { rulesetCode }, // important
     });
 
@@ -48,10 +49,23 @@ export default function App() {
     setValue("rulesetCode", rulesetCode);
   }, [rulesetCode, setValue]);
 
-  // Add this function:
   function onInvalid(errs: any) {
-    console.log("[UI] onInvalid() — RHF prevented submit due to validation errors:", errs);
-    setUiProbe({ type: "invalid", errs });
+    console.log("[UI] RHF errors:", errs);
+
+    const vals = getValues();
+    const result = schema.safeParse(vals);
+    if (!result.success) {
+      console.group("[Zod] issues");
+      for (const iss of result.error.issues) {
+        console.log({
+          code: iss.code,
+          path: iss.path.join("."),
+          message: iss.message,
+          params: (iss as any).params, // includes 'keys' for unrecognized_keys
+        });
+      }
+      console.groupEnd();
+    }
   }
 
   const SELF_TEST = true;
