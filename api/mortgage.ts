@@ -171,7 +171,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const result = computeResultsDynamic(validated.data);
+    const ui = validated.data; // strong type from schema
+    const result = computeResultsDynamic(ui); // matches EngineInput<C>
+
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).json(result);
   } catch (err) {
