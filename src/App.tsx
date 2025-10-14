@@ -1,3 +1,7 @@
+useEffect(() => {
+  console.log("[UI] App mounted");
+}, []);
+
 import { useMemo, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,6 +26,8 @@ export default function App() {
   const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
   const [showBreakdown, setShowBreakdown] = useState(false);
 
+  const [uiProbe, setUiProbe] = useState<any>(null); //TESTING STATE
+
   const schema = useMemo(() => createSchemaForRuleset(rulesetCode), [rulesetCode]);
   type FormValues = InputOf<RulesetCode>;
   type ResolvedValues = OutputOf<RulesetCode>;
@@ -41,12 +47,31 @@ export default function App() {
     setValue("rulesetCode", rulesetCode);
   }, [rulesetCode, setValue]);
 
-  //type checker helper
-  function isNumber(value: unknown): value is number {
-    return typeof value === "number" && !isNaN(value);
+  // Add this function:
+  function onInvalid(errs: any) {
+    console.log("[UI] onInvalid() — RHF prevented submit due to validation errors:", errs);
+    setUiProbe({ type: "invalid", errs });
   }
 
+  const SELF_TEST = true;
+
   async function onSubmit(data: ResolvedValues) {
+    console.log("[UI] onSubmit() called with:", data);
+
+    if (SELF_TEST) {
+      // Minimal client-only calc to prove rendering works
+      // (P * r) / (1 - (1 + r)^-n)
+      const P = Number(data.loanAmount) - Number(data.downPayment || 0);
+      const r = Number(data.rate) / 100 / 12;
+      const n = Number(data.amortization) * 12;
+      const pmt = r > 0 ? (P * r) / (1 - Math.pow(1 + r, -n)) : P / n;
+
+      setPayment(pmt);
+      setAmortization(Number(data.amortization));
+      setUiProbe({ type: "self-test", P, r, n, pmt });
+      return; // IMPORTANT: do not call the API in self-test
+    }
+    
     try {
       const response = await fetch("/api/mortgage", {
         method: "POST",
@@ -100,7 +125,7 @@ export default function App() {
         <input type="checkbox" {...register("newBuild")} /> New build
       </label>
 
-      <form onSubmit={handleSubmit(onSubmit)} noValidate>
+      <form onSubmit={handleSubmit(onSubmit,onInvalid)} noValidate>
         <div>
           <label>
             Loan Amount ($):
