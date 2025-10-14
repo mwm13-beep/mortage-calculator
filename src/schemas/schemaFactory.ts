@@ -32,8 +32,8 @@ function baseSchemaFor(r: BuiltRuleset) {
 
 export function createSchemaForRuleset<C extends RulesetCode>(code: C) {
   const ruleset = RULESETS[code];                 // <-- BuiltRuleset
-  const base = baseSchemaFor(ruleset).strict();   // lock unknown base keys
-  const schema = base.and(ruleset.extrasSchema);  // intersection
+  const base = baseSchemaFor(ruleset);   // lock unknown base keys
+  const schema = base.extend(ruleset.extrasSchema.shape).strict();  // intersection
 
   return schema.superRefine((data, ctx) => {
     if (data.downPayment > data.loanAmount) {

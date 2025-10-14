@@ -8,7 +8,7 @@ import { CmhcBands, cmhcPremium } from "./premium";
 const extras = z.object({
   firstTimeBuyer: z.coerce.boolean().default(false),
   newBuild: z.coerce.boolean().default(false),
-}).strict();
+});
 
 const bands: CmhcBands = [
   { maxLTV: 0.80, pct: 0 },      // not insured normally
