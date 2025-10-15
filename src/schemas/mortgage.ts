@@ -1,4 +1,3 @@
-// src/shared/contracts/mortgage.ts
 import { z } from "zod";
 
 export const MortgageOk = z.object({

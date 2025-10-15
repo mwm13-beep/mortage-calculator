@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createSchemaForRuleset, type InputOf, type OutputOf } from "./schemas/schemaFactory";
 import { RULESETS, type RulesetCode } from "./rulesets";
-import { MortgageOk, MortgageErr } from "../shared/contracts/mortgage";
+import { MortgageOk, MortgageErr } from "./schemas/mortgage";
 
 // shape for the on-demand breakdown panel
 type Breakdown = {
