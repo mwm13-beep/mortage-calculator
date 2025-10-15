@@ -9,7 +9,7 @@ const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TO
 
 export default async function handler(req: Request) {
     const auth = req.headers.get("authorization");
-    
+
     if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
         return new Response("Unauthorized", { status: 401 });
     }
