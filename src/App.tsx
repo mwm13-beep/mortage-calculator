@@ -68,7 +68,7 @@ export default function App() {
     }
   }
 
-  const SELF_TEST = true;
+  const SELF_TEST = false;
 
   async function onSubmit(data: ResolvedValues) {
     console.log("[UI] onSubmit() called with:", data);
