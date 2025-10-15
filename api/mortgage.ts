@@ -85,25 +85,60 @@ function sendError(
 
 
 // ---------- Rate limit (Edge-safe) ----------
-let ratelimit: Ratelimit | null = null;
-try {
-  ratelimit = new Ratelimit({
-    redis: Redis.fromEnv(),
-    limiter: Ratelimit.slidingWindow(10, "60 s"),
-  });
-} catch {
-  ratelimit = null; // will fail closed during request
+let _ratelimit: Ratelimit | null | undefined = undefined;
+function getRateLimiter(): Ratelimit | null {
+  if (_ratelimit !== undefined) return _ratelimit;
+
+  const url =
+    process.env.UPSTASH_REDIS_REST_URL ||
+    process.env.KV_REST_API_URL || // Vercel KV names
+    "";
+  const token =
+    process.env.UPSTASH_REDIS_REST_TOKEN ||
+    process.env.KV_REST_API_TOKEN || // must be WRITE token
+    "";
+
+  if (!url || !token) {
+    console.warn("[ratelimit init] missing env", {
+      hasUrl: !!url,
+      hasToken: !!token,
+      ve: process.env.VERCEL_ENV,
+    });
+    _ratelimit = null;
+    return _ratelimit;
+  }
+
+  try {
+    const redis = new Redis({ url, token });
+    _ratelimit = new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(10, "60 s"),
+    });
+    return _ratelimit;
+  } catch (e) {
+    console.error("[ratelimit init] failed", e);
+    _ratelimit = null;
+    return _ratelimit;
+  }
 }
 
 // ---------- Handler (Edge) ----------
 export default async function handler(req: Request): Promise<Response> {
-
-if (new URL(req.url).searchParams.get("probe") === "1") {
-  const headers = commonHeaders(req);
-  headers.set("X-Probe", "edge-ok");
-  return new Response(JSON.stringify({ ok: true }), { status: 200, headers });
-}
-
+  // quick env probe (remove later)
+  if (new URL(req.url).searchParams.get("env") === "1") {
+    const headers = commonHeaders(req);
+    const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || "";
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || "";
+    return new Response(
+      JSON.stringify({
+        vercelEnv: process.env.VERCEL_ENV,
+        hasUrl: !!url,
+        urlHost: url ? new URL(url).host : null,
+        tokenLen: token.length,
+      }),
+      { status: 200, headers }
+    );
+  }
 
   const headers = commonHeaders(req);
 
@@ -122,6 +157,7 @@ if (new URL(req.url).searchParams.get("probe") === "1") {
   if (len && len > 10_000) return sendError(req, 413, "PAYLOAD_TOO_LARGE");
 
   // ---- Rate limiter presence (fail closed, but make it obvious in logs) ----
+  const ratelimit = getRateLimiter();
   if (!ratelimit) {
     return sendError(req, 500, "INTERNAL_SERVER_ERROR", {
       msg: "Rate limiter unavailable (check UPSTASH_REDIS_REST_URL/_TOKEN)",
