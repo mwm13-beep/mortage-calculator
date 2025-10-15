@@ -1,8 +1,16 @@
 import { z } from "zod";
 
 export const MortgageOk = z.object({
-  payment: z.number(),               
-  amortization: z.number().int().positive(),  // 1..?
+  payment: z.number(),
+  amortization: z.number(),
+  breakdown: z.object({
+    principal: z.number(),
+    annualRatePercent: z.number(),
+    monthlyRateDecimal: z.number(),
+    paymentsPerYear: z.number(),
+    totalPayments: z.number(),
+    paymentViaFormula: z.number(),
+  }).optional()
 });
 
 export const MortgageErr = z.object({

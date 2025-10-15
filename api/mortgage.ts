@@ -124,22 +124,6 @@ function getRateLimiter(): Ratelimit | null {
 
 // ---------- Handler (Edge) ----------
 export default async function handler(req: Request): Promise<Response> {
-  // quick env probe (remove later)
-  if (new URL(req.url).searchParams.get("env") === "1") {
-    const headers = commonHeaders(req);
-    const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || "";
-    const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || "";
-    return new Response(
-      JSON.stringify({
-        vercelEnv: process.env.VERCEL_ENV,
-        hasUrl: !!url,
-        urlHost: url ? new URL(url).host : null,
-        tokenLen: token.length,
-      }),
-      { status: 200, headers }
-    );
-  }
-
   const headers = commonHeaders(req);
 
   // Preflight
@@ -198,8 +182,20 @@ export default async function handler(req: Request): Promise<Response> {
     }
 
     const result = computeResultsDynamic(validated.data);
+    const body = {
+      payment: result.payment,
+      amortization: result.totalPayments / result.paymentsPerYear, // 300 / 12 = 25
+      breakdown: {
+        principal: result.principal,
+        annualRatePercent: result.annualRatePercent,
+        monthlyRateDecimal: result.periodicRateDecimal,
+        paymentsPerYear: result.paymentsPerYear,
+        totalPayments: result.totalPayments,
+        paymentViaFormula: result.payment
+      }
+    };
     headers.set("Cache-Control", "no-store");
-    return new Response(JSON.stringify(result), { status: 200, headers });
+    return new Response(JSON.stringify(body), { status: 200, headers });
 
   } catch (err) {
     return sendError(req, 500, "INTERNAL_SERVER_ERROR", { msg: "Unhandled exception", err });
