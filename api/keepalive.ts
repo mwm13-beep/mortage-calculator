@@ -1,5 +1,5 @@
 // api/keepalive.ts
-export const runtime = "edge";
+export const config = { runtime: "edge" };
 
 import { Redis } from "@upstash/redis";
 
@@ -8,7 +8,7 @@ const url   = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL!
 const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN!;
 
 export default async function handler(req: Request) {
-    const auth = req.headers.get("authorization");
+    const auth = req.headers.get("authorization") || "";
 
     if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
         return new Response("Unauthorized", { status: 401 });
