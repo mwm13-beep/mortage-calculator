@@ -1,4 +1,7 @@
 {
+  "functions": {
+    "api/*.ts": { "runtime": "nodejs22.x" }
+  },
   "headers": [
     {
       "source": "/(.*)",
