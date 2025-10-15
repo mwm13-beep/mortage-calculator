@@ -6,14 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:server": "tsc -p tsconfig.server.json",
-    "vercel-build": "npm run build && npm run build:server",
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
-  "engines": {
-    "node": ">=22.0.0"
+  "engines": { 
+    "node": "22.x" 
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
