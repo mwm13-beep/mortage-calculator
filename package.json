@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "vercel-build": "npm run build && npm run build:server",
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
