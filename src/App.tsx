@@ -68,25 +68,7 @@ export default function App() {
     }
   }
 
-  const SELF_TEST = false;
-
   async function onSubmit(data: ResolvedValues) {
-    console.log("[UI] onSubmit() called with:", data);
-
-    if (SELF_TEST) {
-      // Minimal client-only calc to prove rendering works
-      // (P * r) / (1 - (1 + r)^-n)
-      const P = Number(data.loanAmount) - Number(data.downPayment || 0);
-      const r = Number(data.rate) / 100 / 12;
-      const n = Number(data.amortization) * 12;
-      const pmt = r > 0 ? (P * r) / (1 - Math.pow(1 + r, -n)) : P / n;
-
-      setPayment(pmt);
-      setAmortization(Number(data.amortization));
-      setUiProbe({ type: "self-test", P, r, n, pmt });
-      return; // IMPORTANT: do not call the API in self-test
-    }
-    
     try {
       const response = await fetch("/api/mortgage", {
         method: "POST",
@@ -102,6 +84,7 @@ export default function App() {
       if (ok && ok.success) {
         setPayment(ok.data.payment);
         setAmortization(ok.data.amortization);
+        setBreakdown(ok.data.breakdown);
         return;
       }
 
@@ -113,6 +96,7 @@ export default function App() {
         }
         setPayment(null);
         setAmortization(null);
+        setBreakdown(null);
         return;
       }
 
@@ -122,6 +106,7 @@ export default function App() {
       if (import.meta.env.DEV) console.error("Fetch to /api/mortgage failed:", e);
       setPayment(null);
       setAmortization(null);
+      setBreakdown(null);
     }
   }
 
