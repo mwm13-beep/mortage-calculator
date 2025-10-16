@@ -16,27 +16,21 @@ type Breakdown = {
 };
 
 export default function App() {
-
-  useEffect(() => {
-    console.log("[UI] App mounted");
-  }, []);
-
   const [rulesetCode] = useState<RulesetCode>("CA-default");
   const [payment, setPayment] = useState<number | null>(null);
   const [amortization, setAmortization] = useState<number | null>(null);
   const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
   const [showBreakdown, setShowBreakdown] = useState(false);
 
-  const [uiProbe, setUiProbe] = useState<any>(null); //TESTING STATE
-
   const schema = useMemo(() => createSchemaForRuleset(rulesetCode), [rulesetCode]);
+
   type FormValues = InputOf<RulesetCode>;
   type ResolvedValues = OutputOf<RulesetCode>;
 
   const r = RULESETS[rulesetCode];
 
   // Give RHF the default rulesetCode; keep it synced
-  const { register, handleSubmit, formState: { errors }, setValue, getValues } =
+  const { register, handleSubmit, formState: { errors }, setValue } =
     useForm<FormValues, any, ResolvedValues>({
       resolver: zodResolver(schema),
       mode: "onTouched",
@@ -48,25 +42,6 @@ export default function App() {
   useEffect(() => {
     setValue("rulesetCode", rulesetCode);
   }, [rulesetCode, setValue]);
-
-  function onInvalid(errs: any) {
-    console.log("[UI] RHF errors:", errs);
-
-    const vals = getValues();
-    const result = schema.safeParse(vals);
-    if (!result.success) {
-      console.group("[Zod] issues");
-      for (const iss of result.error.issues) {
-        console.log({
-          code: iss.code,
-          path: iss.path.join("."),
-          message: iss.message,
-          params: (iss as any).params, // includes 'keys' for unrecognized_keys
-        });
-      }
-      console.groupEnd();
-    }
-  }
 
   async function onSubmit(data: ResolvedValues) {
     try {
@@ -125,7 +100,7 @@ export default function App() {
         <input type="checkbox" {...register("newBuild")} /> New build
       </label>
 
-      <form onSubmit={handleSubmit(onSubmit,onInvalid)} noValidate>
+      <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <div>
           <label>
             Loan Amount ($):

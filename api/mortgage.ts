@@ -4,7 +4,7 @@ export const config = { runtime: "edge" }; // <- tells Vercel to run this on Edg
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createSchemaForRuleset } from "../src/schemas/schemaFactory";
-import { isRulesetCode } from "../src/rulesets";
+import { RULESETS, isRulesetCode } from "../src/rulesets";
 import { IS_DEV, IS_PROD } from "./env";                // keep your env helpers if they’re pure
 import { computeResultsDynamic } from "../src/engine";
 
@@ -152,8 +152,8 @@ export default async function handler(req: Request): Promise<Response> {
     // Safer JSON parse: handle empty body gracefully and log parse errors
     let rawBody: Record<string, unknown>;
     try {
-      const text = await req.text();                     // read once
-      rawBody = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+      const rawText = await req.text();                   // read once
+      rawBody = rawText ? (JSON.parse(rawText) as Record<string, unknown>) : {};
     } catch (parseErr) {
       return sendError(req, 400, "BAD_REQUEST", { msg: "Invalid JSON body", err: parseErr });
     }
@@ -169,22 +169,23 @@ export default async function handler(req: Request): Promise<Response> {
     if (!success) return sendError(req, 429, "TOO_MANY_REQUESTS");
 
     // Validate & compute
-    const codeMaybe = rawBody["rulesetCode"];
-    const code = isRulesetCode(codeMaybe) ? codeMaybe : "CA-default";
+    const code = isRulesetCode(rawBody?.rulesetCode) ? rawBody.rulesetCode : "CA-default";
     const schema = createSchemaForRuleset(code);
-    const validated = schema.safeParse(rawBody);
+    const parsed = schema.safeParse(rawBody);
 
-    if (!validated.success) {
+    if (!parsed.success) {
       return sendError(req, 400, "VALIDATION_ERROR", {
         msg: "Request failed input validation",
-        extra: { issues: IS_DEV ? validated.error.issues : undefined },
+        extra: { issues: IS_DEV ? parsed.error.issues : undefined },
       });
     }
 
-    const result = computeResultsDynamic(validated.data);
+    // ... after `parsed.success` check:
+    const { result, derived } = computeResultsDynamic(parsed.data);
+
     const body = {
       payment: result.payment,
-      amortization: result.totalPayments / result.paymentsPerYear, // 300 / 12 = 25
+      amortization: result.totalPayments / result.paymentsPerYear,
       breakdown: {
         principal: result.principal,
         annualRatePercent: result.annualRatePercent,
@@ -192,11 +193,13 @@ export default async function handler(req: Request): Promise<Response> {
         paymentsPerYear: result.paymentsPerYear,
         totalPayments: result.totalPayments,
         paymentViaFormula: result.payment
-      }
+      },
+      // ✅ hand derived flags (e.g., insured) back to the UI
+      derived,
     };
+
     headers.set("Cache-Control", "no-store");
     return new Response(JSON.stringify(body), { status: 200, headers });
-
   } catch (err) {
     return sendError(req, 500, "INTERNAL_SERVER_ERROR", { msg: "Unhandled exception", err });
   }
