@@ -1,9 +1,10 @@
 import { useMemo, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { createSchemaForRuleset, type InputOf, type OutputOf } from "./schemas/schemaFactory";
+import { createSchemaForRuleset, type InputOf, type OutputOf } from "./schemas/requestFactory";
 import { RULESETS, type RulesetCode } from "./rulesets";
-import { MortgageOk, MortgageErr } from "./schemas/mortgage";
+import { ResponseOk, ResponseErr } from "./schemas/responseFactory";
+import z from "zod";
 
 // shape for the on-demand breakdown panel
 type Breakdown = {
@@ -17,9 +18,11 @@ type Breakdown = {
 
 export default function App() {
   const [rulesetCode] = useState<RulesetCode>("CA-default");
-  const [payment, setPayment] = useState<number | null>(null);
-  const [amortization, setAmortization] = useState<number | null>(null);
-  const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
+  const [payment, setPayment] = useState<number|null>(null);
+  const [amortization, setAmortization] = useState<number|null>(null);
+  const [breakdown, setBreakdown] = useState<Breakdown|null>(null);
+  const [derived, setDerived] = useState<{ insured?: boolean } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false);
 
   const schema = useMemo(() => createSchemaForRuleset(rulesetCode), [rulesetCode]);
@@ -43,45 +46,49 @@ export default function App() {
     setValue("rulesetCode", rulesetCode);
   }, [rulesetCode, setValue]);
 
+  function clearResult() {
+    setPayment(null);
+    setAmortization(null);
+    setBreakdown(null);
+    setDerived(null);
+  }
+
+  function applyOk(d: ResponseOk) {
+    setPayment(d.payment);
+    setAmortization(d.amortization);
+    setBreakdown(d.breakdown);
+    setDerived(d.derived ?? null);
+  }
+
   async function onSubmit(data: ResolvedValues) {
+    setIsSubmitting(true);
     try {
-      const response = await fetch("/api/mortgage", {
+      const res = await fetch("/api/mortgage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
 
-      // You already map status codes on the server; still read body defensively.
-      const json = await response.json().catch(() => null);
-
-      // Prefer interpreting body over only response.ok so we can show server error messages.
-      const ok = json && MortgageOk.safeParse(json);
-      if (ok && ok.success) {
-        setPayment(ok.data.payment);
-        setAmortization(ok.data.amortization);
-        setBreakdown(ok.data.breakdown);
+      const json = await res.json().catch(() => null);
+      const ok = json && ResponseOk.safeParse(json);
+      if (ok?.success) {
+        applyOk(ok.data);
         return;
       }
-
-      const err = json && MortgageErr.safeParse(json);
-      if (err && err.success) {
-        // surface friendly message; include correlation id if present
+      const err = json && ResponseErr.safeParse(json);
+      if (err?.success) {
         if (import.meta.env.DEV) {
           console.error("API error:", err.data.error, err.data.correlationId);
         }
-        setPayment(null);
-        setAmortization(null);
-        setBreakdown(null);
+        clearResult();
         return;
       }
-
-      // Fallback: unexpected shape
-      throw new Error(`Unexpected response shape (status ${response.status})`);
+      throw new Error(`Unexpected response (status ${res.status})`);
     } catch (e) {
-      if (import.meta.env.DEV) console.error("Fetch to /api/mortgage failed:", e);
-      setPayment(null);
-      setAmortization(null);
-      setBreakdown(null);
+      if (import.meta.env.DEV) console.error("submit failed:", e);
+      clearResult();
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -178,8 +185,6 @@ export default function App() {
 
         <button type="submit">Calculate</button>
       </form>
-
-
       {payment !== null && amortization !== null && (
         <div className="margin-top">
           <h2>Result:</h2>
@@ -191,6 +196,11 @@ export default function App() {
             The amortization period is <strong>{amortization} years</strong>
             {" "}({amortization * 12} total payments).
           </p>
+          {derived?.insured !== undefined && (
+            <p className="hint">
+              Insurance status: <strong>{derived.insured ? "Insured (CMHC)" : "Uninsured"}</strong>
+            </p>
+          )}
         </div>
       )}
 

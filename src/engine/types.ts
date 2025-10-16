@@ -1,6 +1,6 @@
 // src/engine/types.ts
 import type { RulesetCode } from "../rulesets";
-import type { InputOf, OutputOf } from "../schemas/schemaFactory";
+import type { InputOf, OutputOf } from "../schemas/requestFactory";
 
 // What the engine accepts (already validated & rounded by the schema)
 export type EngineInput<C extends RulesetCode = RulesetCode> = OutputOf<C>;
@@ -14,6 +14,7 @@ export type EngineResult = {
   paymentsPerYear: number;     // e.g. 12
   totalPayments: number;       // n
   payment: number;             // periodic payment (rounded by money policy)
+  derived: {};
 };
 
 // Helper so callers can get the *input* type for a given ruleset at compile time

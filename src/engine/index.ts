@@ -1,6 +1,6 @@
 // src/engine/index.ts
 import { RULESETS, type RulesetCode, isRulesetCode } from "../rulesets";
-import { OutputOf } from "../schemas/schemaFactory";
+import { OutputOf } from "../schemas/requestFactory";
 import { nFromYearsFrequency, paymentFor } from "./formulas";
 import type { EngineInput, EngineResult } from "./types";
 
@@ -8,9 +8,7 @@ export function computeResultsDynamic(input: OutputOf<RulesetCode>) {
   return computeWithDerived(input as any); // returns { result, derived }
 }
 
-export function computeWithDerived<C extends RulesetCode>(
-  input: EngineInput<C>
-): { result: EngineResult; derived: Record<string, unknown> } {
+export function computeWithDerived<C extends RulesetCode>(input: EngineInput<C>): EngineResult {
   const code = input.rulesetCode;
   if (!isRulesetCode(code)) throw new Error(`Unknown rulesetCode: ${String(code)}`);
 
@@ -58,11 +56,12 @@ export function computeWithDerived<C extends RulesetCode>(
     paymentsPerYear,
     totalPayments,
     payment,
+    derived
   };
 
   if (plugin?.postCompute) {
     result = plugin.postCompute(result, effectiveInput, derived);
   }
 
-  return { result, derived };
+  return result;
 }

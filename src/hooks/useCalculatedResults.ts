@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
-import { createSchemaForRuleset } from "../schemas/schemaFactory";
+import { createSchemaForRuleset } from "../schemas/requestFactory";
 import type { RulesetCode } from "../rulesets";
-import type { OutputOf } from "../schemas/schemaFactory";
+import type { OutputOf } from "../schemas/requestFactory";
 import type { EngineResult } from "../engine/types";
 
 export function useCalculatedResults(rulesetCode: RulesetCode) {

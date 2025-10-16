@@ -44,5 +44,5 @@ export function createSchemaForRuleset<C extends RulesetCode>(code: C) {
 
 // Handy types
 export type SchemaOf<C extends RulesetCode> = ReturnType<typeof createSchemaForRuleset>;
-export type InputOf<C extends RulesetCode> = z.input<SchemaOf<C>>;
+export type InputOf<C extends RulesetCode>  = z.input<SchemaOf<C>>;
 export type OutputOf<C extends RulesetCode> = z.output<SchemaOf<C>>;

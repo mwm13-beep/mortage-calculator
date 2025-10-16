@@ -3,10 +3,11 @@ export const config = { runtime: "edge" }; // <- tells Vercel to run this on Edg
 
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { createSchemaForRuleset } from "../src/schemas/schemaFactory";
+import { createSchemaForRuleset } from "../src/schemas/requestFactory";
 import { RULESETS, isRulesetCode } from "../src/rulesets";
 import { IS_DEV, IS_PROD } from "./env";                // keep your env helpers if they’re pure
 import { computeResultsDynamic } from "../src/engine";
+import { makeOk } from "../src/schemas/responseFactory";
 
 // ---------- Types ----------
 type ApiErrorCode =
@@ -181,27 +182,12 @@ export default async function handler(req: Request): Promise<Response> {
     }
 
     // ... after `parsed.success` check:
-    const { result, derived } = computeResultsDynamic(parsed.data);
-
-    const body = {
-      payment: result.payment,
-      amortization: result.totalPayments / result.paymentsPerYear,
-      breakdown: {
-        principal: result.principal,
-        annualRatePercent: result.annualRatePercent,
-        monthlyRateDecimal: result.periodicRateDecimal,
-        paymentsPerYear: result.paymentsPerYear,
-        totalPayments: result.totalPayments,
-        paymentViaFormula: result.payment
-      },
-      // ✅ hand derived flags (e.g., insured) back to the UI
-      derived,
-    };
-
+    const result = computeResultsDynamic(parsed.data);
+    const body = makeOk(result); 
     headers.set("Cache-Control", "no-store");
+
     return new Response(JSON.stringify(body), { status: 200, headers });
   } catch (err) {
     return sendError(req, 500, "INTERNAL_SERVER_ERROR", { msg: "Unhandled exception", err });
   }
-
 }
