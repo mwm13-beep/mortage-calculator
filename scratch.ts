@@ -1,4 +1,8 @@
 import { computeResultsDynamic } from "./src/engine";
+import { DerivedFor } from "./src/schemas/derived";
+import { OutputOf } from "./src/schemas/requestFactory";
+
+type C = "CA-default";
 
 function within(actual: number, expected: number, tol = 0.01) {
   return Math.abs(actual - expected) <= tol;
@@ -13,20 +17,20 @@ function ok(msg: string) {
 
 /** 1) Uninsured (>=20% down): no premium, cap 30 */
 {
-  const { result, derived } = computeResultsDynamic({
+  let input: OutputOf<C> = {
     rulesetCode: "CA-default",
     loanAmount: 600_000,
-    downPayment: 150_000, // 25% down → uninsured
+    downPayment: 150_000,
     rate: 5,
     term: 5,
-    amortization: 40,     // should be capped at 30 (uninsured)
+    amortization: 40,
     firstTimeBuyer: false,
     newBuild: false,
-  });
+  };
 
-  console.log("uninsured", { result, derived });
-
-  console.assert(derived.insured === false, "expected uninsured === false");
+  let result = computeResultsDynamic(input);
+  let insured = (result.derived as DerivedFor<C>).insured;
+  console.assert(insured === false, "expected uninsured === false");
   console.assert(result.paymentsPerYear === 12, "paymentsPerYear should be 12");
   console.assert(result.totalPayments === 360, "amortization cap → 30 years * 12 = 360");
 
@@ -39,20 +43,21 @@ function ok(msg: string) {
 
 /** 2) Insured (<20% down): premium capitalized, cap 25 */
 {
-  const { result, derived } = computeResultsDynamic({
+  let input: OutputOf<C> = {
     rulesetCode: "CA-default",
     loanAmount: 600_000,
-    downPayment: 60_000,   // 10% down → insured
+    downPayment: 60_000,
     rate: 5,
     term: 5,
-    amortization: 40,      // should be capped at 25 when insured
+    amortization: 40,
     firstTimeBuyer: false,
     newBuild: false,
-  });
+  };
 
-  console.log("insured", { result, derived });
+  let result = computeResultsDynamic(input);
+  let insured = (result.derived as DerivedFor<C>).insured;
 
-  console.assert(derived.insured === true, "expected insured === true");
+  console.assert(insured === true, "expected insured === true");
   console.assert(result.totalPayments === 300, "amortization cap → 25 years * 12 = 300");
 
   // With your bands + capitalization on, principal is ~558,600
@@ -64,20 +69,21 @@ function ok(msg: string) {
 
 /** 3) Insured + first-time buyer + new build: cap 30 */
 {
-  const { result, derived } = computeResultsDynamic({
+   let input: OutputOf<C> = {
     rulesetCode: "CA-default",
     loanAmount: 600_000,
-    downPayment: 60_000,   // insured
+    downPayment: 60_000,
     rate: 5,
     term: 5,
-    amortization: 40,      // FTB + new build → cap 30
+    amortization: 40,
     firstTimeBuyer: true,
     newBuild: true,
-  });
+  };
 
-  console.log("insured+ftb+new", { result, derived });
+  let result = computeResultsDynamic(input);
+  let insured = (result.derived as DerivedFor<C>).insured;
 
-  console.assert(derived.insured === true, "expected insured === true");
+  console.assert(insured === true, "expected insured === true");
   console.assert(result.totalPayments === 360, "FTB+new → cap 30 → 360 payments");
 
   // principal still ~558,600; payment lower than insured-25y case

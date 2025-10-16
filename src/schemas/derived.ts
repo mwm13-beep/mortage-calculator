@@ -1,10 +1,9 @@
-import { z } from "zod"
+import type { RulesetCode } from "../rulesets";
 
-export const DerivedByCode = {
-  "CA-default": z.object({ insured: z.boolean() }).strict(),
-  // "US-default": z.object({ ... }),
-  // "UK-default": z.object({ ... }),
-} as const;
+export type DerivedMap = {
+  "CA-default": { insured: boolean };
+  // Add other jurisdictions here as you introduce them…
+};
 
-export type DerivedOf<C extends keyof typeof DerivedByCode> =
-  z.infer<(typeof DerivedByCode)[C]>;
+export type DerivedFor<C extends RulesetCode> =
+  C extends keyof DerivedMap ? DerivedMap[C] : Record<string, unknown>;
