@@ -1,10 +1,10 @@
-import { useMemo, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { createSchemaForRuleset, type InputOf, type OutputOf } from "./schemas/requestFactory";
+import { type InputOf, type OutputOf } from "./schemas/requestFactory";
 import { RULESETS, type RulesetCode } from "./rulesets";
-import { ResponseOk, ResponseErr } from "./schemas/responseFactory";
-import z from "zod";
+import { ResponseOk } from "./schemas/responseFactory";
+import { useCalculatedResults } from "./hooks/useCalculatedResults"
 
 // shape for the on-demand breakdown panel
 type Breakdown = {
@@ -22,10 +22,9 @@ export default function App() {
   const [amortization, setAmortization] = useState<number|null>(null);
   const [breakdown, setBreakdown] = useState<Breakdown|null>(null);
   const [derived, setDerived] = useState<{ insured?: boolean } | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false);
 
-  const schema = useMemo(() => createSchemaForRuleset(rulesetCode), [rulesetCode]);
+  const { computeLocal, computeApi, loading, error, schema } = useCalculatedResults(rulesetCode);
 
   type FormValues = InputOf<RulesetCode>;
   type ResolvedValues = OutputOf<RulesetCode>;
@@ -60,179 +59,155 @@ export default function App() {
     setDerived(d.derived ?? null);
   }
 
-  async function onSubmit(data: ResolvedValues) {
-    setIsSubmitting(true);
-    try {
-      const res = await fetch("/api/mortgage", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-
-      const json = await res.json().catch(() => null);
-      const ok = json && ResponseOk.safeParse(json);
-      if (ok?.success) {
-        applyOk(ok.data);
-        return;
-      }
-      const err = json && ResponseErr.safeParse(json);
-      if (err?.success) {
-        if (import.meta.env.DEV) {
-          console.error("API error:", err.data.error, err.data.correlationId);
-        }
-        clearResult();
-        return;
-      }
-      throw new Error(`Unexpected response (status ${res.status})`);
-    } catch (e) {
-      if (import.meta.env.DEV) console.error("submit failed:", e);
-      clearResult();
-    } finally {
-      setIsSubmitting(false);
-    }
+  // ---- Separate handlers (no toggling state) ----
+  function onLocal(values: ResolvedValues) {
+    const ok = computeLocal(values);     // sync
+    applyOk(ok);
   }
 
+  async function onServer(values: ResolvedValues) {
+    const ok = await computeApi(values); // async
+    if (ok) applyOk(ok);
+    else clearResult();
+  }
+
+  const hasErrors = Object.keys(errors).length > 0;
+
   return (
-    <div className="container">
-      <h1>Mortgage Calculator</h1>
-
-      {/* hidden rulesetCode — no value prop, RHF owns it */}
-      <input type="hidden" {...register("rulesetCode")} />
-
-      {/* CA extras (quick, explicit for now) */}
-      <label>
-        <input type="checkbox" {...register("firstTimeBuyer")} /> First-time buyer
-      </label>
-      <label>
-        <input type="checkbox" {...register("newBuild")} /> New build
-      </label>
-
-      <form onSubmit={handleSubmit(onSubmit)} noValidate>
-        <div>
-          <label>
-            Loan Amount ($):
-            <input
-              type="number"
-              min={r.loanBounds.min}
-              max={r.loanBounds.max}
-              inputMode="decimal"
-              {...register("loanAmount")}
-              aria-invalid={!!errors.loanAmount}
-            />
-            {errors.loanAmount && <p className="error-text">{String(errors.loanAmount.message)}</p>}
-          </label>
+    <div className="page">
+      <div className="container">
+        <h1>Mortgage Calculator</h1>
+        <div className="field">
+          <label htmlFor="rulesetCode">Jurisdiction</label>
+          <select
+            id="rulesetCode"
+            value={rulesetCode}
+            onChange={(e) => {
+              const code = e.target.value as RulesetCode;
+              // update component state so the hook re-memoizes the schema
+              // and RHF value so it posts the right code
+              // (optional) reset results
+              // (optional) reset form values if bounds differ greatly
+              // setValue is RHF; use setRulesetCode if you want to manage it too
+              // You used useState for rulesetCode so:
+              // setRulesetCode(code);
+              setValue("rulesetCode", code, { shouldDirty: true });
+            }}
+          >
+            <option value="CA-default">Canada (Default)</option>
+            {/* later: Object.keys(RULESETS).map(k => <option key={k} value={k}>{k}</option>) */}
+          </select>
         </div>
+        <form noValidate>
+          <fieldset className="card">
+            <legend>Loan details</legend>
+            <div className="grid-2">
+              <div className="field">
+                <label>Loan Amount ($)</label>
+                <input type="number" /* ... */ {...register("loanAmount")} />
+                {errors.loanAmount && <p className="error-text">{String(errors.loanAmount.message)}</p>}
+              </div>
 
-        <div>
-          <label>
-            Down Payment ($):
-            <input
-              type="number"
-              min={0}
-              max={r.loanBounds.max}
-              inputMode="decimal"
-              {...register("downPayment")}
-              aria-invalid={!!errors.downPayment}
-            />
-            {errors.downPayment && <p className="error-text">{String(errors.downPayment.message)}</p>}
-          </label>
-        </div>
+              <div className="field">
+                <label>Down Payment ($)</label>
+                <input type="number" /* ... */ {...register("downPayment")} />
+                {errors.downPayment && <p className="error-text">{String(errors.downPayment.message)}</p>}
+              </div>
 
-        <div>
-          <label>
-            Interest Rate (% per year):
-            <input
-              type="number"
-              min={r.rateBounds.min}
-              max={r.rateBounds.max}
-              inputMode="decimal"
-              {...register("rate")}
-              aria-invalid={!!errors.rate}
-            />
-            {errors.rate && <p className="error-text">{String(errors.rate.message)}</p>}
-          </label>
-        </div>
+              <div className="field">
+                <label>Interest Rate (% per year)</label>
+                <input type="number" /* ... */ {...register("rate")} />
+                {errors.rate && <p className="error-text">{String(errors.rate.message)}</p>}
+              </div>
 
-        <div>
-          <label>
-            Term (Years):
-            <input
-              type="number"
-              min={r.termBoundsYears.min}
-              max={r.termBoundsYears.max}
-              inputMode="numeric"
-              {...register("term")}
-              aria-invalid={!!errors.term}
-            />
-            {errors.term && <p className="error-text">{String(errors.term.message)}</p>}
-          </label>
-        </div>
+              <div className="field">
+                <label>Term (Years)</label>
+                <input type="number" /* ... */ {...register("term")} />
+                {errors.term && <p className="error-text">{String(errors.term.message)}</p>}
+              </div>
 
-        <div>
-          <label>
-            Amortization (Years):
-            <input
-              type="number"
-              min={r.termBoundsYears.min}
-              max={r.termBoundsYears.max}
-              inputMode="numeric"
-              {...register("amortization")}
-              aria-invalid={!!errors.amortization}
-            />
-            {errors.amortization && <p className="error-text">{String(errors.amortization.message)}</p>}
-          </label>
-        </div>
+              <div className="field">
+                <label>Amortization (Years)</label>
+                <input type="number" /* ... */ {...register("amortization")} />
+                {errors.amortization && <p className="error-text">{String(errors.amortization.message)}</p>}
+              </div>
+            </div>
+          </fieldset>
 
-        <button type="submit">Calculate</button>
-      </form>
-      {payment !== null && amortization !== null && (
-        <div className="margin-top">
-          <h2>Result:</h2>
-          <p>
-            Your estimated monthly payment is{" "}
-            <strong>${payment.toFixed(2)}</strong>
-          </p>
-          <p>
-            The amortization period is <strong>{amortization} years</strong>
-            {" "}({amortization * 12} total payments).
-          </p>
-          {derived?.insured !== undefined && (
-            <p className="hint">
-              Insurance status: <strong>{derived.insured ? "Insured (CMHC)" : "Uninsured"}</strong>
-            </p>
+          {rulesetCode === "CA-default" && (
+            <fieldset className="card">
+              <legend>Canada-specific</legend>
+              <div className="row gap">
+                <label><input type="checkbox" {...register("firstTimeBuyer")} /> First-time buyer</label>
+                <label><input type="checkbox" {...register("newBuild")} /> New build</label>
+              </div>
+            </fieldset>
           )}
-        </div>
-      )}
+        <div className="row gap">
+          <button
+            type="button"
+            onClick={handleSubmit(onLocal)}
+            disabled={loading || hasErrors}
+          >
+            {loading ? "Calculating…" : "Calculate"}
+          </button>
 
-      {/* Toggle button to show how we calculated it */}
-      <button
-        type="button"
-        onClick={() => setShowBreakdown((v) => !v)}
-        aria-expanded={showBreakdown}
-        className="secondary"
-      >
-        {showBreakdown ? "Hide" : "Show"} breakdown
-      </button>
-      {showBreakdown && breakdown && (
-        <div className="calc-breakdown">
-          <h3>How we calculated your payment</h3>
-          <p><code>Payment = P · r / (1 − (1 + r)<sup>−n</sup>)</code></p>
-          <ul>
-            <li>Principal <strong>P</strong> = ${breakdown.principal.toFixed(2)}</li>
-            <li>Annual rate = {breakdown.annualRatePercent.toFixed(3)}%</li>
-            <li>Monthly rate <strong>r</strong> = { (breakdown.monthlyRateDecimal * 100).toFixed(3) }%</li>
-            <li>Payments per year = {breakdown.paymentsPerYear}</li>
-            <li>Total payments <strong>n</strong> = {breakdown.totalPayments}</li>
-          </ul>
-          <p>
-            Plugging in the numbers gives{" "}
-            <strong>${breakdown.paymentViaFormula.toFixed(2)}</strong>
-            {payment !== null && Math.abs(payment - breakdown.paymentViaFormula) > 0.01
-              ? " (slight difference due to rounding)"
-              : ""}
-          </p>
+          <button
+            type="button"
+            onClick={handleSubmit(onServer)}
+            disabled={loading || hasErrors}
+          >
+            {loading ? "Calculating…" : "Download PDF Breakdown"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowBreakdown(v => !v)}
+            aria-expanded={showBreakdown}
+          >
+            {showBreakdown ? "Hide" : "Show"} breakdown
+          </button>
         </div>
-      )}
+        </form>
+        {payment !== null && amortization !== null && (
+          <div className="margin-top">
+            <h2>Result:</h2>
+            <p>
+              Your estimated monthly payment is{" "}
+              <strong>${payment.toFixed(2)}</strong>
+            </p>
+            <p>
+              The amortization period is <strong>{amortization} years</strong>
+              {" "}({amortization * 12} total payments).
+            </p>
+            {derived?.insured !== undefined && (
+              <p className="hint">
+                Insurance status: <strong>{derived.insured ? "Insured (CMHC)" : "Uninsured"}</strong>
+              </p>
+            )}
+          </div>
+        )}
+        {showBreakdown && breakdown && (
+          <div className="calc-breakdown">
+            <h3>How we calculated your payment</h3>
+            <p><code>Payment = P · r / (1 − (1 + r)<sup>−n</sup>)</code></p>
+            <ul>
+              <li>Principal <strong>P</strong> = ${breakdown.principal.toFixed(2)}</li>
+              <li>Annual rate = {breakdown.annualRatePercent.toFixed(3)}%</li>
+              <li>Monthly rate <strong>r</strong> = { (breakdown.monthlyRateDecimal * 100).toFixed(3) }%</li>
+              <li>Payments per year = {breakdown.paymentsPerYear}</li>
+              <li>Total payments <strong>n</strong> = {breakdown.totalPayments}</li>
+            </ul>
+            <p>
+              Plugging in the numbers gives{" "}
+              <strong>${breakdown.paymentViaFormula.toFixed(2)}</strong>
+              {payment !== null && Math.abs(payment - breakdown.paymentViaFormula) > 0.01
+                ? " (slight difference due to rounding)"
+                : ""}
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
