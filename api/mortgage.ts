@@ -141,6 +141,26 @@ export default async function handler(req: Request): Promise<Response> {
   const len = Number(req.headers.get("content-length") || 0);
   if (len && len > 10_000) return sendError(req, 413, "PAYLOAD_TOO_LARGE");
 
+  // --- test gates -------------------------------------------------
+  const url = new URL(req.url);
+
+  // 1) Simulate the API being off (friendly JSON error)
+  if (url.searchParams.get("disabled") === "1" || process.env.API_DISABLED === "1") {
+    return new Response(JSON.stringify({ error: "SERVICE_UNAVAILABLE" }), {
+      status: 503,
+      headers,
+    });
+  }
+
+  // 2) Simulate a non-JSON / HTML error page (bad proxy, nginx, etc.)
+  if (url.searchParams.get("badjson") === "1") {
+    return new Response("<html><h1>502 Bad Gateway</h1></html>", {
+      status: 502,
+      headers: new Headers({ "Content-Type": "text/html" }),
+    });
+  }
+// ----------------------------------------------------------------
+
   // ---- Rate limiter presence (fail closed, but make it obvious in logs) ----
   const ratelimit = getRateLimiter();
   if (!ratelimit) {
