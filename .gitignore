@@ -26,3 +26,10 @@ dist-ssr
 .env*.local
 /scratch.ts
 /src/scratch.ts
+
+#virtual env
+.venv
+
+# Test file for PDF end point
+/out.pdf
+/src/out.pdf
