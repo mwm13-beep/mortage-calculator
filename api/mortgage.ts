@@ -4,7 +4,7 @@ export const config = { runtime: "edge" }; // <- tells Vercel to run this on Edg
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createSchemaForRuleset } from "../src/schemas/requestFactory";
-import { RULESETS, isRulesetCode } from "../src/rulesets";
+import { isRulesetCode } from "../src/rulesets";
 import { IS_DEV, IS_PROD } from "./env";                // keep your env helpers if they’re pure
 import { computeResultsDynamic } from "../src/engine";
 import { makeOk } from "../src/schemas/responseFactory";
