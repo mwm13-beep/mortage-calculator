@@ -91,29 +91,74 @@ function getRateLimiter(): Ratelimit | null {
 }
 
 // ---------- Tiny placeholder PDF renderer ----------
-function tinyPdfFromText(message: string) {
-  const pdf =
-`%PDF-1.4
-1 0 obj <</Type/Catalog/Pages 2 0 R>> endobj
-2 0 obj <</Type/Pages/Count 1/Kids[3 0 R]>> endobj
-3 0 obj <</Type/Page/Parent 2 0 R/MediaBox[0 0 300 144]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>> endobj
-4 0 obj <</Length 52>>stream
-BT /F1 12 Tf 50 100 Td (${message}) Tj ET
-endstream endobj
-5 0 obj <</Type/Font/Subtype/Type1/BaseFont/Helvetica>> endobj
-xref
-0 6
-0000000000 65535 f 
-0000000010 00000 n 
-0000000062 00000 n 
-0000000118 00000 n 
-0000000270 00000 n 
-0000000381 00000 n 
-trailer <</Size 6/Root 1 0 R>>
-startxref
-468
-%%EOF`;
-  return new TextEncoder().encode(pdf);
+function escapePdfText(s: string) {
+  // Escape parentheses and backslashes per PDF spec
+  return s.replace(/([()\\])/g, "\\$1");
+}
+
+function tinyPdfFromText(msg: string): Uint8Array {
+  const enc = new TextEncoder();
+  const parts: Uint8Array[] = [];
+  let offset = 0;
+
+  const push = (s: string) => {
+    const bytes = enc.encode(s);
+    parts.push(bytes);
+    offset += bytes.length;
+  };
+
+  // Collect object start offsets (xref)
+  const xref: number[] = [];
+
+  push("%PDF-1.4\n");
+
+  const addObj = (num: number, body: string) => {
+    xref[num] = offset;
+    push(`${num} 0 obj\n${body}\nendobj\n`);
+  };
+
+  // 1: Catalog
+  addObj(1, `<< /Type /Catalog /Pages 2 0 R >>`);
+
+  // 2: Pages
+  addObj(2, `<< /Type /Pages /Count 1 /Kids [3 0 R] >>`);
+
+  // 4: Content stream (built before the Page dict so we know its ref)
+  const text = `BT /F1 12 Tf 50 100 Td (${escapePdfText(msg)}) Tj ET`;
+  const content = `<< /Length ${text.length} >>\nstream\n${text}\nendstream`;
+  addObj(4, content);
+
+  // 3: Page
+  addObj(
+    3,
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>`
+  );
+
+  // 5: Font
+  addObj(5, `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>`);
+
+  // XRef
+  const xrefStart = offset;
+  let xrefTable = "xref\n0 6\n";
+  xrefTable += "0000000000 65535 f \n";
+  for (let i = 1; i <= 5; i++) {
+    const pos = String(xref[i] ?? 0).padStart(10, "0");
+    xrefTable += `${pos} 00000 n \n`;
+  }
+  push(xrefTable);
+
+  // Trailer
+  push(`trailer << /Size 6 /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`);
+
+  // Concatenate all parts
+  const total = parts.reduce((n, b) => n + b.length, 0);
+  const out = new Uint8Array(total);
+  let p = 0;
+  for (const b of parts) {
+    out.set(b, p);
+    p += b.length;
+  }
+  return out;
 }
 
 export default async function handler(req: Request): Promise<Response> {
