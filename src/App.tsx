@@ -23,8 +23,9 @@ export default function App() {
   const [breakdown, setBreakdown] = useState<Breakdown|null>(null);
   const [derived, setDerived] = useState<{ insured?: boolean } | null>(null);
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
-  const { computeLocal, computeApi, loading, error, schema } = useCalculatedResults(rulesetCode);
+  const { computeLocal, computeServer, loading, error, schema } = useCalculatedResults(rulesetCode);
 
   type FormValues = InputOf<RulesetCode>;
   type ResolvedValues = OutputOf<RulesetCode>;
@@ -52,23 +53,35 @@ export default function App() {
     setDerived(null);
   }
 
-  function applyOk(d: ResponseOk) {
-    setPayment(d.payment);
-    setAmortization(d.amortization);
-    setBreakdown(d.breakdown);
-    setDerived(d.derived ?? null);
+  function applyOk(ok: ResponseOk | null) {
+    if (!ok || error) {
+      clearResult();
+      return;
+    }
+    setPayment(ok.payment);
+    setAmortization(ok.amortization);
+    setBreakdown(ok.breakdown);
+    setDerived(ok.derived ?? null);
   }
 
   // ---- Separate handlers (no toggling state) ----
   function onLocal(values: ResolvedValues) {
-    const ok = computeLocal(values);     // sync
+    const ok = computeLocal(values);
     applyOk(ok);
   }
 
-  async function onServer(values: ResolvedValues) {
-    const ok = await computeApi(values); // async
-    if (ok) applyOk(ok);
-    else clearResult();
+  async function onInline(values: ResolvedValues) {
+    const res = await computeServer("both-inline", values); // async
+    if (!res) return clearResult();
+    applyOk(res.ok);
+    if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+    setPdfUrl(res.pdfUrl ?? null);
+  }
+
+  async function onAttachment(values: ResolvedValues) {
+    const res = await computeServer("both-download", values); // async
+    if (!res) return clearResult();
+    applyOk(res.ok);
   }
 
   const hasErrors = Object.keys(errors).length > 0;
@@ -154,7 +167,15 @@ export default function App() {
 
           <button
             type="button"
-            onClick={handleSubmit(onServer)}
+            onClick={handleSubmit(onInline)}
+            disabled={loading || hasErrors}
+          >
+            {loading ? "Calculating…" : "Display Detailed Breakdown"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSubmit(onAttachment)}
             disabled={loading || hasErrors}
           >
             {loading ? "Calculating…" : "Download PDF Breakdown"}
@@ -186,6 +207,11 @@ export default function App() {
               </p>
             )}
           </div>
+        )}
+        {pdfUrl && (
+          <object data={pdfUrl} type="application/pdf" width="100%" height="600">
+            <p>Can’t display PDF. <a href={pdfUrl} target="_blank" rel="noreferrer">Open</a></p>
+          </object>
         )}
         {showBreakdown && breakdown && (
           <div className="calc-breakdown">
