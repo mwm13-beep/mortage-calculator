@@ -1,4 +1,4 @@
-import { escapePdfText, clampLen, fm } from "./templateUtils";
+import { escapePdfText, clampLen, asStr, moneyStr } from "./templateUtils";
 import type { ResponseOk } from "../schemas/responseFactory";
 import type { RulesetCode } from "../rulesets";
 
@@ -21,15 +21,15 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
 
   // Inputs (lightly derived from ok.breakdown + known inputs from ok)
   push("Inputs:");
-  push(`  Principal (P): ${fm.money(ok.breakdown.principal)}`);
-  push(`  Annual rate:   ${fm.pct(ok.breakdown.annualRatePercent)}`);
+  push(`  Principal (P): ${ok.breakdown.principal}`);
+  push(`  Annual rate:   ${ok.breakdown.annualRatePercent}`);
   push(`  Payments/year: ${ok.breakdown.paymentsPerYear}`);
   push(`  Total payments (n): ${ok.breakdown.totalPayments}`);
   push("");
 
   // Result summary
   push("Results:");
-  push(`  Payment: ${fm.money(ok.payment)}`);
+  push(`  Payment: ${ok.payment}`);
   push(`  Amortization: ${ok.amortization} yrs`);
   if (typeof ok.derived?.insured === "boolean") {
     push(`  Insured: ${ok.derived.insured ? "Yes (CMHC)" : "No"}`);
@@ -46,13 +46,18 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
   const r = ok.breakdown.monthlyRateDecimal;    // periodic decimal
   let bal = ok.breakdown.principal;
   for (let i = 1; i <= Math.min(K, ok.breakdown.totalPayments); i++) {
-    const interest = bal * r;
+    const interest      = bal * r;
     const principalPaid = ok.payment - interest;
     bal = Math.max(0, bal - principalPaid);
-    push(
-      `  ${String(i).padStart(3)}  ${fm.money(bal).padStart(10)}  ` +
-      `${fm.money(interest).padStart(10)}  ${fm.money(principalPaid).padStart(10)}  ${fm.money(ok.payment).padStart(10)}`
-    );
+
+    // strings for padding (no extra rounding! just display):
+    const iStr   = String(i).padStart(3);
+    const balStr = moneyStr(bal).padStart(10);
+    const intStr = moneyStr(interest).padStart(10);
+    const ppStr  = moneyStr(principalPaid).padStart(10);
+    const payStr = moneyStr(ok.payment).padStart(10);
+
+    push(`${iStr} ${balStr} ${intStr} ${ppStr} ${payStr}`);
   }
   if (ok.breakdown.totalPayments > K) {
     push("  …");

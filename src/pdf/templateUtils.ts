@@ -9,8 +9,10 @@ export function clampLen(s: string, max = 120): string {
   return str.length <= max ? str : str.slice(0, max - 1) + "…";
 }
 
-// Formatters — keep deterministic (no locale) to ensure testable output.
-export const fm = {
-  money(n: number) { return `$${n.toFixed(2)}`; },
-  pct(n: number)   { return `${n.toFixed(3)}%`; },
-};
+export function asStr(v: unknown): string {
+  return String(v);
+}
+
+export function moneyStr(n: number, decimals = 2): string {
+  return n.toFixed(decimals);        // display-only; no extra math
+}
