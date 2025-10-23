@@ -2,31 +2,31 @@
 export const config = { runtime: "edge" };
 
 import { Redis } from "@upstash/redis";
+import { baseHeaders, sendError } from "./_util/http";
 
-// If you mapped your vars to UPSTASH_* keep this:
 const url   = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL!;
 const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN!;
 
 export default async function handler(req: Request) {
-    const auth = req.headers.get("authorization") || "";
+  const headers = baseHeaders(req, "application/json; charset=utf-8");
 
-    if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
-        return new Response("Unauthorized", { status: 401 });
-    }
+  // allow only POST (and preflight)
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers });
+  if (req.method !== "POST") return sendError(req, 405, "METHOD_NOT_ALLOWED", { msg: "POST required" });
 
-    try {
-        const redis = new Redis({ url, token });
+  // simple bearer auth (server-to-server cron)
+  const auth = req.headers.get("authorization") || "";
+  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return sendError(req, 401, "INVALID_PRINCIPAL", { msg: "Unauthorized" });
+  }
 
-        // any tiny write or ping works; this both "touches" and gives you a breadcrumb
-        await redis.set("heartbeat", Date.now().toString(), { ex: 60 * 60 * 24 * 21 }); // 21-day TTL
-        await redis.ping();
-
-        return new Response(null, {
-            status: 204,
-            headers: { "Cache-Control": "no-store" },
-        });
-        } catch {
-        // even if it fails, respond 204 so the cron isn’t noisy
-        return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
-    }
+  try {
+    const redis = new Redis({ url, token });
+    await redis.set("heartbeat", Date.now().toString(), { ex: 60 * 60 * 24 * 21 });
+    await redis.ping();
+    return new Response(null, { status: 204, headers });
+  } catch (e) {
+    // still reply 204 to keep cron quiet; log happens inside sendError if you prefer
+    return new Response(null, { status: 204, headers });
+  }
 }

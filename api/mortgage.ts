@@ -1,193 +1,40 @@
-// api/mortgage.ts — Edge Function
-export const config = { runtime: "edge" }; // <- tells Vercel to run this on Edge
+// api/mortgage.ts
+export const config = { runtime: "edge" };
 
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
 import { createSchemaForRuleset } from "../src/schemas/requestFactory";
 import { isRulesetCode } from "../src/rulesets";
-import { IS_DEV, IS_PROD } from "./env";                // keep your env helpers if they’re pure
 import { computeResultsDynamic } from "../src/engine";
 import { makeOk } from "../src/schemas/responseFactory";
+import {
+  baseHeaders, guardMethod, guardJson, parseJsonBody,
+  applyRateLimit, sendError
+} from "./_util/http";
 
-// ---------- Types ----------
-type ApiErrorCode =
-  | "METHOD_NOT_ALLOWED"
-  | "UNSUPPORTED_MEDIA_TYPE"
-  | "PAYLOAD_TOO_LARGE"
-  | "BAD_REQUEST"
-  | "VALIDATION_ERROR"
-  | "INVALID_PRINCIPAL"
-  | "TOO_MANY_REQUESTS"
-  | "INTERNAL_SERVER_ERROR";
-
-// ---------- CORS / common headers ----------
-const ALLOW_ORIGIN = process.env.UI_ORIGIN; // optional allowlist origin
-
-function commonHeaders(req: Request): Headers {
-  const h = new Headers();
-  const origin = req.headers.get("origin");
-  if (origin && ALLOW_ORIGIN && origin === ALLOW_ORIGIN) {
-    h.set("Access-Control-Allow-Origin", origin);
-    h.set("Vary", "Origin");
-  }
-  h.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  h.set("Access-Control-Allow-Headers", "Content-Type");
-  h.set("Content-Type", "application/json; charset=utf-8");
-  h.set("Cache-Control", "no-store");
-  return h;
-}
-
-// ---------- Correlation / errors ----------
-function correlationId(req: Request): string {
-  return (
-    req.headers.get("x-vercel-id") ||
-    req.headers.get("x-request-id") ||
-    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-  );
-}
-
-function devDetails(err: unknown) {
-  if (!IS_DEV) return undefined;
-  if (err instanceof Error) {
-    return { name: err.name, message: err.message, stack: err.stack };
-  }
-  return { message: String(err) };
-}
-
-function sendError(
-  req: Request,
-  httpStatus: number,
-  code: ApiErrorCode,
-  opts?: { msg?: string; extra?: Record<string, unknown>; err?: unknown }
-): Response {
-  const cid = correlationId(req);
-
-  // Always log the raw error so Vercel Logs show it – even in prod
-  if (opts?.err !== undefined) {
-    console.error(`[${cid}] ${code}`, opts.msg ?? "", opts.err);
-  } else {
-    console.warn(`[${cid}] ${code}`, opts?.msg ?? "", IS_DEV ? opts?.extra ?? {} : undefined);
-  }
-
-  const headers = commonHeaders(req);
-  headers.set("X-Correlation-Id", cid);
-
-  if (IS_PROD && httpStatus >= 500) {
-    return new Response(JSON.stringify({ error: "INTERNAL_SERVER_ERROR" }), { status: 500, headers });
-  }
-
-  const body: Record<string, unknown> = { error: code, correlationId: cid };
-  if (opts?.msg && IS_DEV) body.message = opts.msg;
-  if (opts?.extra && IS_DEV) body.details = opts.extra;
-  if (opts?.err && IS_DEV) body.errorObject = devDetails(opts.err);
-
-  return new Response(JSON.stringify(body), { status: httpStatus, headers });
-}
-
-
-// ---------- Rate limit (Edge-safe) ----------
-let _ratelimit: Ratelimit | null | undefined = undefined;
-function getRateLimiter(): Ratelimit | null {
-  if (_ratelimit !== undefined) return _ratelimit;
-
-  const url =
-    process.env.UPSTASH_REDIS_REST_URL ||
-    process.env.KV_REST_API_URL || // Vercel KV names
-    "";
-  const token =
-    process.env.UPSTASH_REDIS_REST_TOKEN ||
-    process.env.KV_REST_API_TOKEN || // must be WRITE token
-    "";
-
-  if (!url || !token) {
-    console.warn("[ratelimit init] missing env", {
-      hasUrl: !!url,
-      hasToken: !!token,
-      ve: process.env.VERCEL_ENV,
-    });
-    _ratelimit = null;
-    return _ratelimit;
-  }
-
-  try {
-    const redis = new Redis({ url, token });
-    _ratelimit = new Ratelimit({
-      redis,
-      limiter: Ratelimit.slidingWindow(10, "60 s"),
-    });
-    return _ratelimit;
-  } catch (e) {
-    console.error("[ratelimit init] failed", e);
-    _ratelimit = null;
-    return _ratelimit;
-  }
-}
-
-// ---------- Handler (Edge) ----------
 export default async function handler(req: Request): Promise<Response> {
-  const headers = commonHeaders(req);
+  const headers = baseHeaders(req, "application/json; charset=utf-8");
 
-  // Preflight
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers });
-  if (req.method !== "POST") return sendError(req, 405, "METHOD_NOT_ALLOWED", { msg: "POST required" });
-
-  // Content type guard
-  const ctype = (req.headers.get("content-type") || "").toLowerCase();
-  if (!ctype.startsWith("application/json")) {
-    return sendError(req, 415, "UNSUPPORTED_MEDIA_TYPE", { msg: "Content-Type must be application/json" });
-  }
-
-  // Optional small payload cap by header only
-  const len = Number(req.headers.get("content-length") || 0);
-  if (len && len > 10_000) return sendError(req, 413, "PAYLOAD_TOO_LARGE");
-
-  // ---- Rate limiter presence (fail closed, but make it obvious in logs) ----
-  const ratelimit = getRateLimiter();
-  if (!ratelimit) {
-    return sendError(req, 500, "INTERNAL_SERVER_ERROR", {
-      msg: "Rate limiter unavailable (check UPSTASH_REDIS_REST_URL/_TOKEN)",
-    });
-  }
+  // guards
+  const m = guardMethod(req, headers, "POST"); if (m) return m;
+  const c = guardJson(req); if (c) return c;
+  const r = await applyRateLimit(req, headers); if (r) return r;
 
   try {
-    // Safer JSON parse: handle empty body gracefully and log parse errors
-    let rawBody: Record<string, unknown>;
-    try {
-      const rawText = await req.text();                   // read once
-      rawBody = rawText ? (JSON.parse(rawText) as Record<string, unknown>) : {};
-    } catch (parseErr) {
-      return sendError(req, 400, "BAD_REQUEST", { msg: "Invalid JSON body", err: parseErr });
-    }
-
-    // Rate limit
-    const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "unknown";
-    const ua = req.headers.get("user-agent") || "";
-    const key = `${ip}|${ua}`;
-    const { success, limit, remaining, reset } = await ratelimit.limit(key);
-    headers.set("X-RateLimit-Limit", String(limit));
-    headers.set("X-RateLimit-Remaining", String(remaining));
-    headers.set("X-RateLimit-Reset", String(reset));
-    if (!success) return sendError(req, 429, "TOO_MANY_REQUESTS");
-
-    // Validate & compute
-    const code = isRulesetCode(rawBody?.rulesetCode) ? rawBody.rulesetCode : "CA-default";
+    const rawBody = await parseJsonBody(req);
+    
+    const code = isRulesetCode(rawBody?.rulesetCode) ? (rawBody as any).rulesetCode : "CA-default";
     const schema = createSchemaForRuleset(code);
     const parsed = schema.safeParse(rawBody);
-
     if (!parsed.success) {
-      return sendError(req, 400, "VALIDATION_ERROR", {
-        msg: "Request failed input validation",
-        extra: { issues: IS_DEV ? parsed.error.issues : undefined },
-      });
+      return sendError(req, 400, "VALIDATION_ERROR", { msg: "Request failed input validation" });
     }
 
-    // ... after `parsed.success` check:
     const result = computeResultsDynamic(parsed.data);
-    const body = makeOk(result); 
-    headers.set("Cache-Control", "no-store");
+    const body = makeOk(result);
 
     return new Response(JSON.stringify(body), { status: 200, headers });
-  } catch (err) {
-    return sendError(req, 500, "INTERNAL_SERVER_ERROR", { msg: "Unhandled exception", err });
+  } catch (e: any) {
+    const http = e?.http ?? 500;
+    const code = (e?.code as any) ?? "INTERNAL_SERVER_ERROR";
+    return sendError(req, http, code, { msg: e?.msg, err: e });
   }
 }
