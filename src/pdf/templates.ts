@@ -82,12 +82,18 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
   addObj(2, `<< /Type /Pages /Count 1 /Kids [3 0 R] >>`);
 
   // Build one content stream with lines
-  const content = lines.map(({y, text}) => {
-    const safe = escapePdfText(clampLen(text));
-    return `0 ${y} Td (${safe}) Tj 0 -14 Td`;
-  }).join("\n");
+  const leading = 14;
+  const startX = 50;
+  const startY = 780;
 
-  const stream = `BT /F1 12 Tf 50 780 Td\n${content}\nET`;
+  const content = lines
+    .map(({ text }) => {
+      const safe = escapePdfText(clampLen(text));
+      return `(${safe}) Tj 0 -${leading} Td`;   // show, then move DOWN
+    })
+    .join("\n");
+
+  const stream = `BT /F1 12 Tf ${startX} ${startY} Td ${content} ET`;
   addObj(4, `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
 
   addObj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>`);
