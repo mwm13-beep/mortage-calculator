@@ -157,7 +157,7 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
   //
   // Simpler: just drop the rule at bodyStartY + (bodyLeading * 0.5)
   // i.e. halfway up into the spacer, feels like "under the header"
-  const ruleY = bodyStartY;
+  const ruleY = bodyStartY + bodyLeading;
 
   // Build the body text block:
   const bodyTextOps = [
