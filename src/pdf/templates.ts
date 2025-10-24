@@ -12,12 +12,6 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
   let y = 120; // start high, then go down
 
   const push = (t: string) => lines.push({ y: y -= 14, text: t });
-  
-  // Header
-  const jurisdictionLabel = jurisdiction ? jurisdiction : "";
-  push(`Mortgage Breakdown — ${jurisdictionLabel}`);
-  push(now.toISOString().slice(0,10));
-  push("");
 
   // Inputs (lightly derived from ok.breakdown + known inputs from ok)
   push("Inputs:");
@@ -36,36 +30,46 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
   }
   push("");
 
-  // Schedule summary (first K rows + last row)
-  // Keep it small for demo; later you can stream more pages if needed.
-  const K = 12; // first year
-  push("Payment schedule (first 12 + last):");
-  push("  #     Balance     Interest    Principal   Payment");
-  // Client doesn’t have a full schedule — so compute simple synthetic rows:
-  // NOTE: This preserves performance; later you can plug your detailed schedule function here.
-  const r = ok.breakdown.monthlyRateDecimal;    // periodic decimal
-  let bal = ok.breakdown.principal;
-  for (let i = 1; i <= Math.min(K, ok.breakdown.totalPayments); i++) {
-    const interest      = bal * r;
-    const principalPaid = ok.payment - interest;
-    bal = Math.max(0, bal - principalPaid);
+  // ---------- SCHEDULE SECTION (first 12 + last 5 using O(1) math) ----------
+  const i = ok.breakdown.monthlyRateDecimal;
+  const n = ok.breakdown.totalPayments;
+  const P = ok.breakdown.principal;
+  const A = ok.payment;
 
-    // strings for padding (no extra rounding! just display):
-    const iStr   = String(i).padStart(3);
-    const balStr = moneyStr(bal).padStart(10);
-    const intStr = moneyStr(interest).padStart(10);
-    const ppStr  = moneyStr(principalPaid).padStart(10);
-    const payStr = moneyStr(ok.payment).padStart(10);
-
-    push(`${iStr} ${balStr} ${intStr} ${ppStr} ${payStr}`);
+  function balanceAfter(k: number) {
+    // balance immediately AFTER k payments (k >= 0)
+    const g = Math.pow(1 + i, k);
+    return P * g - A * ((g - 1) / i);
   }
-  if (ok.breakdown.totalPayments > K) {
-    push("  …");
-    push(`  ${String(ok.breakdown.totalPayments).padStart(3)}  $0.00       (final row)`);
+  function rowLine(k: number) {
+    // row k (1-indexed): amounts paid on the k-th payment
+    const balBefore = balanceAfter(k - 1);
+    const interest = balBefore * i;
+    const principalPaid = A - interest;
+    const balAfter = Math.max(0, balBefore - principalPaid);
+
+    const kStr  = String(k).padStart(3);
+    const balS  = moneyStr(balAfter).padStart(10);
+    const intS  = moneyStr(interest).padStart(10);
+    const ppS   = moneyStr(principalPaid).padStart(10);
+    const payS  = moneyStr(A).padStart(10);
+    return `${kStr} ${balS} ${intS} ${ppS} ${payS}`;
+  }
+
+  const K_FIRST = Math.min(12, n);
+  push("Payment schedule (first 12 + last 5):");
+  push("  #     Balance     Interest    Principal   Payment");
+
+  for (let k = 1; k <= K_FIRST; k++) push(rowLine(k));
+  if (n > K_FIRST + 5) {
+    push("  ...");
+    for (let k = n - 4; k <= n; k++) push(rowLine(k));
+  } else if (n > K_FIRST) {
+    for (let k = K_FIRST + 1; k <= n; k++) push(rowLine(k));
   }
   push("");
 
-  // Footer
+  //----- FOOTER SECTION -----
   push("Demo PDF — not for official use.");
 
   // ---- Construct minimal PDF (one page, Helvetica) ----
@@ -81,31 +85,50 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
   addObj(1, `<< /Type /Catalog /Pages 2 0 R >>`);
   addObj(2, `<< /Type /Pages /Count 1 /Kids [3 0 R] >>`);
 
-  // Build one content stream with lines
+  // ---------- NICER STREAM (bold title, divider rule, consistent leading) ----------
   const leading = 14;
   const startX = 50;
   const startY = 780;
 
-  const content = lines
-    .map(({ text }) => {
-      const safe = escapePdfText(clampLen(text));
-      return `(${safe}) Tj 0 -${leading} Td`;   // show, then move DOWN
-    })
+  // Build the text lines once
+  const textBlock = lines
+    .map(({ text }) => `(${escapePdfText(clampLen(text))}) Tj 0 -${leading} Td`)
     .join("\n");
 
-  const stream = `BT /F1 12 Tf ${startX} ${startY} Td ${content} ET`;
-  addObj(4, `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+  // We’ll add /Helvetica-Bold as F2 and a simple divider rule below the title
+  const stream = `BT
+  /F2 18 Tf
+  ${startX} ${startY} Td
+  (Mortgage Breakdown    ${jurisdiction || ""}) Tj 0 -${leading} Td
+  (${now.toISOString().slice(0,10)}) Tj 0 -${leading} Td
+  0 -${leading} Td
+  /F1 12 Tf
+  ${textBlock}
+  ET
+  0.9 g 0 G
+  50 610 495 18 re f
+  0 g 0.6 G 0.5 w    % restore stroke color/width for the divider
+  50 728 m 545 728 l S
+  `;
+  const streamBytes = enc.encode(stream);
+  addObj(4, `<< /Length ${streamBytes.length} >>\nstream\n${stream}\nendstream`);
 
-  addObj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>`);
+  // Also add a bold font object once (beside F1=Helvetica)
   addObj(5, `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>`);
+  addObj(6, `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>`);
+  addObj(3, `<< /Type /Page /Parent 2 0 R
+    /MediaBox [0 0 595 842]
+    /Contents 4 0 R
+    /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>`);
 
   const xrefStart = off;
   emit(`xref\n0 6\n`);
   emit(`0000000000 65535 f \n`);
-  for (let i = 1; i <= 5; i++) {
-    const pos = String(xref[i] ?? 0).padStart(10,"0");
+  for (let idx = 1; idx <= 5; idx++) {
+    const pos = String(xref[idx] ?? 0).padStart(10, "0");
     emit(`${pos} 00000 n \n`);
   }
+
   emit(`trailer << /Size 6 /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`);
 
   const total = chunks.reduce((n,b)=>n+b.length,0);
