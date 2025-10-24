@@ -141,7 +141,7 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
   // --- Stripe behind the schedule header ----------------
   // Add some horizontal + vertical padding so text doesn't kiss the edges.
   const stripePadX   = 4;
-  const stripePadY   = 2;
+  const stripePadY   = 4;
   const stripeY      = scheduleY - stripePadY;           // a hair above the baseline
   const stripeH      = bodyLeading + stripePadY * 2;     // taller than one line
   const stripeX      = startX - stripePadX;              // extend a little left
@@ -157,7 +157,7 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
   //
   // Simpler: just drop the rule at bodyStartY + (bodyLeading * 0.5)
   // i.e. halfway up into the spacer, feels like "under the header"
-  const ruleY = bodyStartY + (bodyLeading * 0.5);
+  const ruleY = bodyStartY;
 
   // Build the body text block:
   const bodyTextOps = [
