@@ -86,49 +86,113 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
   addObj(2, `<< /Type /Pages /Count 1 /Kids [3 0 R] >>`);
 
   // ---------- NICER STREAM (bold title, divider rule, consistent leading) ----------
-  // after you have `lines` and before building the final stream:
-  const leading = 14;
-  const startX  = 50;
-  const startY  = 780;
+  // Layout constants
+  const bodyLeading   = 14;   // line spacing for body text (F1 12pt)
+  const headerLeading = 20;   // line spacing for header lines (F2 18pt). Bigger because font is bigger.
+  const startX        = 50;   // left margin for text block
+  const maxX          = 545;  // right edge of our layout box
+  const startY        = 780;  // top baseline for the first header line
 
-  // find the schedule header line and compute its Y (no magic 610)
+  // Helper: build the header block (title + date + spacer) as PDF ops,
+  // and tell us where the body text should start vertically.
+  //
+  // Returns:
+  // - headerOps: PDF text operators for header lines
+  // - bodyStartY: the Y-coordinate of the FIRST body line baseline
+  //
+  function buildHeaderOps() {
+    // Line 0 (title)
+    // After we draw it, we move down headerLeading
+    // Line 1 (date)
+    // After we draw it, we move down headerLeading
+    //
+    // Then we add a spacer line the size of bodyLeading
+    //
+    // bodyStartY is: startY - headerLeading - headerLeading - bodyLeading
+
+    const headerOps = [
+      `(Mortgage Breakdown    ${jurisdiction || ""}) Tj 0 -${headerLeading} Td`,
+      `(${now.toISOString().slice(0,10)}) Tj 0 -${headerLeading} Td`,
+      `0 -${bodyLeading} Td`, // spacer before body font switch
+    ].join("\n");
+
+    const bodyStartY =
+      startY - headerLeading - headerLeading - bodyLeading;
+
+    return { headerOps, bodyStartY };
+  }
+
+  const { headerOps, bodyStartY } = buildHeaderOps();
+
+  // Now we know where the first *body* line will land: bodyStartY.
+  // Every body line after that just walks down by bodyLeading.
+
+  function yForBodyLine(idx: number) {
+    // idx = 0 => first body line => bodyStartY - (0 * bodyLeading)
+    // idx = 1 => next body line  => bodyStartY - (1 * bodyLeading)
+    return bodyStartY - (idx * bodyLeading);
+  }
+
+  // Which line is "Payment schedule..." in the body text?
   const schedIdx = lines.findIndex(l => l.text.startsWith("Payment schedule"));
-  const linesBeforeSched = schedIdx === -1 ? 0 : schedIdx;
+  const scheduleBodyIdx = schedIdx === -1 ? 0 : schedIdx;
+  const scheduleY = yForBodyLine(scheduleBodyIdx);
 
-  // y for an arbitrary line index in `lines`:
-  // 2 title rows (title + date) + 1 spacer happen before we switch to F1 text.
-  const yForLine = (idx: number) => startY - leading * (2 + 1 + idx);
+  // --- Stripe behind the schedule header ----------------
+  // Add some horizontal + vertical padding so text doesn't kiss the edges.
+  const stripePadX   = 4;
+  const stripePadY   = 2;
+  const stripeY      = scheduleY - stripePadY;           // a hair above the baseline
+  const stripeH      = bodyLeading + stripePadY * 2;     // taller than one line
+  const stripeX      = startX - stripePadX;              // extend a little left
+  const stripeW      = (maxX - startX) + stripePadX * 2; // extend a little right
 
-  // rectangle just behind the schedule header
-  const stripeY = yForLine(linesBeforeSched) + 2;          // nudge up a hair
-  const stripeH = leading + 4;
-  const stripeW = 545 - startX;
+  // --- Divider line position ----------------------------
+  // We want a subtle rule under the header block, not through it.
+  // Let's put it halfway between the date line baseline and the first body line.
+  //
+  // The date line baseline is: startY - headerLeading
+  // The spacer "gap" baseline for body is: bodyStartY + bodyLeading
+  //   (Why + bodyLeading? Because bodyStartY is after we already consumed that spacer.)
+  //
+  // Simpler: just drop the rule at bodyStartY + (bodyLeading * 0.5)
+  // i.e. halfway up into the spacer, feels like "under the header"
+  const ruleY = bodyStartY + (bodyLeading * 0.5);
 
-  const textBlock = lines
-    .map(({ text }) => `(${escapePdfText(clampLen(text))}) Tj 0 -${leading} Td`)
-    .join("\n");
+  // Build the body text block:
+  const bodyTextOps = [
+    "/F1 12 Tf", // switch to body font
+    // Move to the first body line baseline relative to where headerOps left us.
+    // After headerOps we are ALREADY positioned at bodyStartY, so we do NOT need
+    // an extra absolute move here. We just start emitting text lines.
+    ...lines.map(({ text }) =>
+      `(${escapePdfText(clampLen(text))}) Tj 0 -${bodyLeading} Td`
+    ),
+  ].join("\n");
 
+  // Now assemble the full drawing stream.
+  // NOTE: we no longer hardcode '728' etc. Everything is computed.
   const stream = `
-  q
-  0.9 g 0 G
-  ${startX} ${stripeY} ${stripeW} ${stripeH} re f   % background stripe BEHIND text
-  Q
-  BT
-  /F2 18 Tf
-  ${startX} ${startY} Td
-  (Mortgage Breakdown    ${jurisdiction || ""}) Tj 0 -${leading} Td
-  (${now.toISOString().slice(0,10)}) Tj 0 -${leading} Td
-  0 -${leading} Td
-  /F1 12 Tf
-  ${textBlock}
-  ET
-  q 0 g 0.6 G 0.5 w
-  50 728 m 545 728 l S
-  Q
+    q
+    0.9 g 0 G
+    ${stripeX} ${stripeY} ${stripeW} ${stripeH} re f   % background stripe behind schedule header
+    Q
+    BT
+    /F2 18 Tf
+    ${startX} ${startY} Td
+    ${headerOps}
+    ${bodyTextOps}
+    ET
+    q
+    0 g 0.6 G 0.5 w
+    ${startX} ${ruleY} m ${maxX} ${ruleY} l S
+    Q
   `;
 
   const streamBytes = enc.encode(stream);
   addObj(4, `<< /Length ${streamBytes.length} >>\nstream\n${stream}\nendstream`);
+
+  /* ------ END OF STREAM CONTENTS ------ */
 
   // Also add a bold font object once (beside F1=Helvetica)
   addObj(5, `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>`);
