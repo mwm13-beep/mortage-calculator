@@ -86,34 +86,32 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
   addObj(2, `<< /Type /Pages /Count 1 /Kids [3 0 R] >>`);
 
   // ---------- NICER STREAM (bold title, divider rule, consistent leading) ----------
+  // after you have `lines` and before building the final stream:
   const leading = 14;
-  const startX = 50;
-  const startY = 780;
+  const startX  = 50;
+  const startY  = 780;
 
-  // Where is the schedule header in the lines array?
+  // find the schedule header line and compute its Y (no magic 610)
   const schedIdx = lines.findIndex(l => l.text.startsWith("Payment schedule"));
   const linesBeforeSched = schedIdx === -1 ? 0 : schedIdx;
 
-  // Helper to compute the absolute Y of a logical line index in `lines`
-  // We have: 2 (title+date) + 1 (extra spacer) before switching to F1.
-  // After that, each line consumes `leading`.
+  // y for an arbitrary line index in `lines`:
+  // 2 title rows (title + date) + 1 spacer happen before we switch to F1 text.
   const yForLine = (idx: number) => startY - leading * (2 + 1 + idx);
 
-  // Gray stripe behind the schedule header row (slightly taller than leading)
-  const stripeY  = yForLine(linesBeforeSched) + 2;       // a smidge above text baseline
-  const stripeH  = leading + 4;
-  const stripeW  = 545 - startX;
+  // rectangle just behind the schedule header
+  const stripeY = yForLine(linesBeforeSched) + 2;          // nudge up a hair
+  const stripeH = leading + 4;
+  const stripeW = 545 - startX;
 
-  // Build the text lines once
   const textBlock = lines
     .map(({ text }) => `(${escapePdfText(clampLen(text))}) Tj 0 -${leading} Td`)
     .join("\n");
 
-  // --- Graphics first (behind), then text ---
   const stream = `
   q
   0.9 g 0 G
-  ${startX} ${stripeY} ${stripeW} ${stripeH} re f
+  ${startX} ${stripeY} ${stripeW} ${stripeH} re f   % background stripe BEHIND text
   Q
   BT
   /F2 18 Tf
@@ -128,6 +126,7 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
   50 728 m 545 728 l S
   Q
   `;
+
   const streamBytes = enc.encode(stream);
   addObj(4, `<< /Length ${streamBytes.length} >>\nstream\n${stream}\nendstream`);
 
