@@ -90,13 +90,32 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
   const startX = 50;
   const startY = 780;
 
+  // Where is the schedule header in the lines array?
+  const schedIdx = lines.findIndex(l => l.text.startsWith("Payment schedule"));
+  const linesBeforeSched = schedIdx === -1 ? 0 : schedIdx;
+
+  // Helper to compute the absolute Y of a logical line index in `lines`
+  // We have: 2 (title+date) + 1 (extra spacer) before switching to F1.
+  // After that, each line consumes `leading`.
+  const yForLine = (idx: number) => startY - leading * (2 + 1 + idx);
+
+  // Gray stripe behind the schedule header row (slightly taller than leading)
+  const stripeY  = yForLine(linesBeforeSched) + 2;       // a smidge above text baseline
+  const stripeH  = leading + 4;
+  const stripeW  = 545 - startX;
+
   // Build the text lines once
   const textBlock = lines
     .map(({ text }) => `(${escapePdfText(clampLen(text))}) Tj 0 -${leading} Td`)
     .join("\n");
 
-  // We’ll add /Helvetica-Bold as F2 and a simple divider rule below the title
-  const stream = `BT
+  // --- Graphics first (behind), then text ---
+  const stream = `
+  q
+  0.9 g 0 G
+  ${startX} ${stripeY} ${stripeW} ${stripeH} re f
+  Q
+  BT
   /F2 18 Tf
   ${startX} ${startY} Td
   (Mortgage Breakdown    ${jurisdiction || ""}) Tj 0 -${leading} Td
@@ -105,10 +124,9 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
   /F1 12 Tf
   ${textBlock}
   ET
-  0.9 g 0 G
-  50 610 495 18 re f
-  0 g 0.6 G 0.5 w    % restore stroke color/width for the divider
+  q 0 g 0.6 G 0.5 w
   50 728 m 545 728 l S
+  Q
   `;
   const streamBytes = enc.encode(stream);
   addObj(4, `<< /Length ${streamBytes.length} >>\nstream\n${stream}\nendstream`);
