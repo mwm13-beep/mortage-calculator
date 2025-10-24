@@ -30,6 +30,14 @@ dist-ssr
 #virtual env
 .venv
 
-# Test file for PDF end point
+# Testing files
+/coverage
+/src/coverage
 /out.pdf
 /src/out.pdf
+/out.json
+/src/out.json
+/valid.json
+/src/valid.json
+/invalid.json
+/src/invalid.json

@@ -21,6 +21,7 @@ export function baseHeaders(req: Request, contentType?: string): Headers {
   h.set("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization");
   h.set("Cache-Control", "no-store");
   if (contentType) h.set("Content-Type", contentType);
+  h.set("X-Correlation-Id", correlationId(req));
   return h;
 }
 
@@ -44,9 +45,8 @@ export function sendError(
   code: ApiErrorCode,
   opts?: { msg?: string; extra?: Record<string, unknown>; err?: unknown }
 ): Response {
-  const cid = correlationId(req);
   const headers = baseHeaders(req, "application/json; charset=utf-8");
-  headers.set("X-Correlation-Id", cid);
+  const cid = headers.get("x-correlation-id")!; // always present from baseHeaders
 
   if (opts?.err) console.error(`[${cid}] ${code}`, opts.msg ?? "", opts.err);
   else console.warn(`[${cid}] ${code}`, opts?.msg ?? "", IS_DEV ? opts?.extra ?? {} : undefined);
@@ -61,6 +61,7 @@ export function sendError(
 
   return new Response(JSON.stringify(body), { status: httpStatus, headers });
 }
+
 
 // --- method / preflight
 export function guardMethod(req: Request, headers: Headers, method = "POST"): Response | null {

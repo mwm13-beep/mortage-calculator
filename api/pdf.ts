@@ -42,13 +42,13 @@ export default async function handler(req: Request): Promise<Response> {
       "Content-Disposition",
       disp === "attachment" ? 'attachment; filename="mortgage.pdf"' : 'inline; filename="mortgage.pdf"'
     );
-    pdfHeaders.set("X-Duration-MS", String(Date.now() - t0));
     pdfHeaders.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
     pdfHeaders.set("Pragma", "no-cache");
 
     const stream = new ReadableStream({
       start(controller) { controller.enqueue(bytes); controller.close(); },
     });
+    pdfHeaders.set("X-Duration-MS", String(Date.now() - t0));
     return new Response(stream, { status: 200, headers: pdfHeaders });
   } catch (e: any) {
     const http = e?.http ?? 500;

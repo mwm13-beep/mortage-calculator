@@ -11,6 +11,7 @@ import {
 } from "./_util/http";
 
 export default async function handler(req: Request): Promise<Response> {
+  const t0 = Date.now();
   const headers = baseHeaders(req, "application/json; charset=utf-8");
 
   // guards
@@ -30,7 +31,7 @@ export default async function handler(req: Request): Promise<Response> {
 
     const result = computeResultsDynamic(parsed.data);
     const body = makeOk(result);
-
+    headers.set("X-Duration-MS", String(Date.now() - t0));
     return new Response(JSON.stringify(body), { status: 200, headers });
   } catch (e: any) {
     const http = e?.http ?? 500;
