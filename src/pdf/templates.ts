@@ -30,7 +30,7 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
   }
   push("");
 
-  // ---------- SCHEDULE SECTION (first 12 + last 5 using O(1) math) ----------
+  // ---------- SCHEDULE SECTION (first 12 + last 12 using O(1) math) ----------
   const i = ok.breakdown.monthlyRateDecimal;
   const n = ok.breakdown.totalPayments;
   const P = ok.breakdown.principal;
@@ -41,6 +41,25 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
     const g = Math.pow(1 + i, k);
     return P * g - A * ((g - 1) / i);
   }
+
+  // We’re going to lay columns out with fixed-width chunks and left-align them.
+  // Define widths for each column in characters.
+  const COLS = {
+    num: 4,        // "#"
+    bal: 12,       // "Balance"
+    int: 11,       // "Interest"
+    prin: 11,      // "Principal"
+    pay: 11,       // "Payment"
+  };
+
+  // helper: left-pad or clip a string so that it fills a fixed-width column.
+  // We'll left-align, so numbers all start in the same place for each column.
+  function col(val: string | number, w: number) {
+    const s = String(val);
+    return s.length >= w ? s.slice(0, w) : s.padEnd(w, " ");
+  }
+
+  // render one amortization row as aligned columns
   function rowLine(k: number) {
     // row k (1-indexed): amounts paid on the k-th payment
     const balBefore = balanceAfter(k - 1);
@@ -48,25 +67,53 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
     const principalPaid = A - interest;
     const balAfter = Math.max(0, balBefore - principalPaid);
 
-    const kStr  = String(k).padStart(3);
-    const balS  = moneyStr(balAfter).padStart(10);
-    const intS  = moneyStr(interest).padStart(10);
-    const ppS   = moneyStr(principalPaid).padStart(10);
-    const payS  = moneyStr(A).padStart(10);
-    return `${kStr} ${balS} ${intS} ${ppS} ${payS}`;
+    // Convert numeric values to money strings
+    const balS = moneyStr(balAfter);
+    const intS = moneyStr(interest);
+    const ppS  = moneyStr(principalPaid);
+    const payS = moneyStr(A);
+
+    return (
+      col(k,          COLS.num)  +
+      col(balS,       COLS.bal)  +
+      col(intS,       COLS.int)  +
+      col(ppS,        COLS.prin) +
+      col(payS,       COLS.pay)
+    );
   }
 
-  const K_FIRST = Math.min(12, n);
-  push("Payment schedule (first 12 + last 5):");
-  push("  #     Balance     Interest    Principal   Payment");
+  // We'll show firstYearCount = 12 and lastYearCount = 12.
+  const FIRST_COUNT = Math.min(12, n);
+  const LAST_COUNT  = Math.min(12, n - FIRST_COUNT > 0 ? 12 : 0); // only show tail if there's room
 
-  for (let k = 1; k <= K_FIRST; k++) push(rowLine(k));
-  if (n > K_FIRST + 5) {
+  push(`Payment schedule (first ${FIRST_COUNT} + last ${LAST_COUNT}):`);
+  // table header row, using same col() helper so headers line up with data
+  push(
+    col("#",        COLS.num)  +
+    col("Balance",  COLS.bal)  +
+    col("Interest", COLS.int)  +
+    col("Principal",COLS.prin) +
+    col("Payment",  COLS.pay)
+  );
+
+  // first block
+  for (let k = 1; k <= FIRST_COUNT; k++) {
+    push(rowLine(k));
+  }
+
+  // middle ellipsis if we are skipping content
+  if (LAST_COUNT > 0 && n > FIRST_COUNT + LAST_COUNT) {
     push("  ...");
-    for (let k = n - 4; k <= n; k++) push(rowLine(k));
-  } else if (n > K_FIRST) {
-    for (let k = K_FIRST + 1; k <= n; k++) push(rowLine(k));
   }
+
+  // last block
+  if (LAST_COUNT > 0) {
+    const startLast = n - LAST_COUNT + 1;
+    for (let k = startLast; k <= n; k++) {
+      push(rowLine(k));
+    }
+  }
+
   push("");
 
   //----- FOOTER SECTION -----
@@ -133,19 +180,34 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
     return bodyStartY - (idx * bodyLeading);
   }
 
-  // Which line is "Payment schedule..." in the body text?
   const schedIdx = lines.findIndex(l => l.text.startsWith("Payment schedule"));
   const scheduleBodyIdx = schedIdx === -1 ? 0 : schedIdx;
   const scheduleY = yForBodyLine(scheduleBodyIdx);
 
-  // --- Stripe behind the schedule header ----------------
-  // Add some horizontal + vertical padding so text doesn't kiss the edges.
-  const stripePadX   = 4;
-  const stripePadY   = 4;
-  const stripeY      = scheduleY - stripePadY;           // a hair above the baseline
-  const stripeH      = bodyLeading + stripePadY * 2;     // taller than one line
-  const stripeX      = startX - stripePadX;              // extend a little left
-  const stripeW      = (maxX - startX) + stripePadX * 2; // extend a little right
+  const stripePadX   = 6;  // bump from 4 -> 6 for more breathing room
+  const stripePadY   = 3;  // gentle vertical padding
+  const stripeY      = scheduleY - stripePadY;
+  const stripeH      = bodyLeading + stripePadY * 2;
+
+  // We’ll compute a "tableMaxX" based on our text column widths above.
+  // This gives us a nice tight band that fits just the table,
+  // instead of running all the way to maxX.
+  //
+  // totalChars = sum of COLS.* plus maybe 1 space between? but we didn't add spaces now,
+  // we just concatenate columns directly. So it's just the sum.
+  const totalChars =
+    COLS.num + COLS.bal + COLS.int + COLS.prin + COLS.pay;
+
+  // We'll guess ~6px per char at 12pt Helvetica for layout in PDF user units.
+  // This is heuristic, but it keeps the band from spanning the entire width.
+  const approxCharWidth = 6;
+  const tableWidthPx = totalChars * approxCharWidth;
+
+  // keep a tiny safety margin on the right
+  const tableRightX = startX + tableWidthPx + stripePadX;
+
+  const stripeX      = startX - stripePadX;
+  const stripeW      = (tableRightX - stripeX);
 
   // --- Divider line position ----------------------------
   // We want a subtle rule under the header block, not through it.
