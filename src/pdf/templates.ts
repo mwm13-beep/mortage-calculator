@@ -56,7 +56,7 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
   // We'll left-align, so numbers all start in the same place for each column.
   function col(val: string | number, w: number) {
     const s = String(val);
-    return s.length >= w ? s.slice(0, w) : s.padStart(w, " ");
+    return s.length >= w ? s.slice(0, w) : s.padEnd(w, " ");
   }
 
   // render one amortization row as aligned columns
@@ -221,15 +221,26 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
   // i.e. halfway up into the spacer, feels like "under the header"
   const ruleY = bodyStartY + bodyLeading * 1.5;
 
-  // Build the body text block:
-  const bodyTextOps = [
-    "/F1 12 Tf", // switch to body font
-    // Move to the first body line baseline relative to where headerOps left us.
-    // After headerOps we are ALREADY positioned at bodyStartY, so we do NOT need
-    // an extra absolute move here. We just start emitting text lines.
-    ...lines.map(({ text }) =>
+  // Build three slices: before schedule, schedule block, after schedule
+  const beforeSchedule = lines.slice(0, scheduleBodyIdx);
+  const scheduleAndAfter = lines.slice(scheduleBodyIdx);
+
+  // We also know how far down the cursor moves for each emitted line: bodyLeading
+
+  function buildLinesBlock(fontRef: string, fontSize: number, arr: {text: string}[]) {
+    const header = `${fontRef} ${fontSize} Tf`;
+    const body = arr.map(({ text }) =>
       `(${escapePdfText(clampLen(text))}) Tj 0 -${bodyLeading} Td`
-    ),
+    );
+    return [header, ...body].join("\n");
+  }
+
+  const bodyTextOps = [
+    // 1. normal body (Helvetica) up to but NOT including the schedule header
+    buildLinesBlock("/F1", 12, beforeSchedule),
+
+    // 2. table block (Courier monospace) starting at "Payment schedule"
+    buildLinesBlock("/Fmono", 12, scheduleAndAfter),
   ].join("\n");
 
   // Now assemble the full drawing stream.
@@ -259,10 +270,11 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
   // Also add a bold font object once (beside F1=Helvetica)
   addObj(5, `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>`);
   addObj(6, `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>`);
+  addObj(7, `<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>`);
   addObj(3, `<< /Type /Page /Parent 2 0 R
     /MediaBox [0 0 595 842]
     /Contents 4 0 R
-    /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>`);
+    /Resources << /Font << /F1 5 0 R /F2 6 0 R /Fmono 7 0 R >> >> >>`);
 
   const xrefStart = off;
   emit(`xref\n0 6\n`);
