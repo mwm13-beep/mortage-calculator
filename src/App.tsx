@@ -87,8 +87,8 @@ export default function App() {
   const hasErrors = Object.keys(errors).length > 0;
 
   return (
-    <div className="page">
-      <div className="container">
+    <div className="min-h-screen bg-zinc-900 text-zinc-100 flex items-center justify-center p-8">
+      <div className="w-full max-w-3xl bg-zinc-800/80 border border-zinc-700 rounded-2xl p-6 shadow-xl">
         <h1>Mortgage Calculator</h1>
         <div className="field">
           <label htmlFor="rulesetCode">Jurisdiction</label>
@@ -208,11 +208,6 @@ export default function App() {
             )}
           </div>
         )}
-        {pdfUrl && (
-          <object data={pdfUrl} type="application/pdf" width="100%" height="600">
-            <p>Can’t display PDF. <a href={pdfUrl} target="_blank" rel="noreferrer">Open</a></p>
-          </object>
-        )}
         {showBreakdown && breakdown && (
           <div className="calc-breakdown">
             <h3>How we calculated your payment</h3>
@@ -232,6 +227,11 @@ export default function App() {
                 : ""}
             </p>
           </div>
+        )}
+        {pdfUrl && (
+          <object data={pdfUrl} type="application/pdf" width="100%" height="600">
+            <p>Can’t display PDF. <a href={pdfUrl} target="_blank" rel="noreferrer">Open</a></p>
+          </object>
         )}
       </div>
     </div>
