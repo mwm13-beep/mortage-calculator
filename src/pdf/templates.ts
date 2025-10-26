@@ -174,37 +174,15 @@ export function renderMortgagePdf(
 
   const { headerOps, bodyStartY } = buildHeaderOps();
 
-  // Given a body line index, where does it Y-position (baseline)?
-  function yForBodyLine(idx: number) {
-    return bodyStartY - (idx * bodyLeading);
-  }
-
   // Find where "Payment schedule" starts in the body
-  const schedIdx = lines.findIndex(l =>
-    l.text.startsWith("Payment schedule")
+  const headersIdx = lines.findIndex(l =>
+    l.text.startsWith("#")
   );
-  const scheduleBodyIdx = schedIdx === -1 ? 0 : schedIdx;
-  const scheduleY = yForBodyLine(scheduleBodyIdx);
-
-  // Stripe behind the schedule header
-  const stripePadX   = 6;
-  const stripePadY   = 3;
-  const stripeY      = scheduleY - stripePadY;
-  const stripeH      = bodyLeading + stripePadY * 2;
-
-  // Estimate table width so stripe hugs table instead of spanning maxX
-  const totalChars =
-    COLS.num + COLS.bal + COLS.int + COLS.prin + COLS.pay;
-  const approxCharWidth = 6; // heuristic px/char @ 12pt Courier-ish
-  const tableWidthPx = totalChars * approxCharWidth;
-  const tableRightX  = startX + tableWidthPx + stripePadX;
-
-  const stripeX      = startX - stripePadX;
-  const stripeW      = tableRightX - stripeX;
+  const scheduleBodyIdx = headersIdx === -1 ? 0 : headersIdx;
 
   // Horizontal rule under the big header,
   // sitting in the gap above first body line.
-  const ruleY = bodyStartY + bodyLeading * 0.5;
+  const ruleY = bodyStartY + bodyLeading * 1.75;
 
   //
   // ─────────────────────────────────────────
@@ -247,10 +225,6 @@ export function renderMortgagePdf(
   //
 
   const stream = `
-    q
-    0.9 g 0 G
-    ${stripeX} ${stripeY} ${stripeW} ${stripeH} re f   % grey stripe behind schedule header
-    Q
     BT
     /F2 18 Tf
     ${startX} ${startY} Td
