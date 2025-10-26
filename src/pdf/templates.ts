@@ -175,10 +175,10 @@ export function renderMortgagePdf(
   const { headerOps, bodyStartY } = buildHeaderOps();
 
   // Find where "Payment schedule" starts in the body
-  const headersIdx = lines.findIndex(l =>
-    l.text.startsWith("#")
+  const schedIdx = lines.findIndex(l =>
+    l.text.startsWith("Payment schedule")
   );
-  const scheduleBodyIdx = headersIdx === -1 ? 0 : headersIdx;
+  const scheduleBodyIdx = schedIdx === -1 ? 0 : schedIdx + 1; // line after table title
 
   // Horizontal rule under the big header,
   // sitting in the gap above first body line.
