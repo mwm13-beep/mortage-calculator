@@ -181,6 +181,11 @@ export function renderMortgagePdf(
   );
   const scheduleBodyIdx = schedIdx === -1 ? 0 : schedIdx + 1; // line after table title
 
+  // Find where "Demo PDF" starts in the body
+  const demoLineIdx = lines.findIndex(l =>
+    l.text.startsWith("Demo PDF")
+  );
+
   // Horizontal rule under the big header,
   // sitting in the gap above first body line.
   const ruleY = bodyStartY + bodyLeading * 1.75;
@@ -195,7 +200,8 @@ export function renderMortgagePdf(
   //
 
   const beforeSchedule = lines.slice(0, scheduleBodyIdx);
-  const scheduleAndAfter = lines.slice(scheduleBodyIdx);
+  const scheduleAndAfter = lines.slice(scheduleBodyIdx, demoLineIdx);
+  const demoAndAfter = lines.slice(demoLineIdx);
 
   // helper: generate a block that:
   //   - sets font
@@ -216,6 +222,7 @@ export function renderMortgagePdf(
   const bodyTextOps = [
     buildLinesBlock("/F1",    12, beforeSchedule),   // Helvetica
     buildLinesBlock("/Fmono", 12, scheduleAndAfter), // Courier (monospace)
+    buildLinesBlock("/F1",    12, demoAndAfter),     // Helvetica
   ].join("\n");
 
   //
