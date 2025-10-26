@@ -99,7 +99,8 @@ export function renderMortgagePdf(
       ? Math.min(12, n - FIRST_COUNT)
       : 0;
 
-  push(`Payment schedule (first ${FIRST_COUNT} + last ${LAST_COUNT}):\n`);
+  push(`Payment schedule (first ${FIRST_COUNT} + last ${LAST_COUNT}):`);
+  push("");
 
   // Schedule table header
   push(
