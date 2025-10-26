@@ -56,7 +56,7 @@ export function renderMortgagePdf(ok: ResponseOk, jurisdiction: RulesetCode, now
   // We'll left-align, so numbers all start in the same place for each column.
   function col(val: string | number, w: number) {
     const s = String(val);
-    return s.length >= w ? s.slice(0, w) : s.padEnd(w, " ");
+    return s.length >= w ? s.slice(0, w) : s.padStart(w, " ");
   }
 
   // render one amortization row as aligned columns
