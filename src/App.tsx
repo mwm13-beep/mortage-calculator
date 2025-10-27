@@ -170,7 +170,7 @@ export default function App() {
             onClick={handleSubmit(onInline)}
             disabled={loading || hasErrors}
           >
-            {loading ? "Calculating…" : "Display Detailed Breakdown"}
+            {loading ? "Calculating…" : "Preview PDF Breakdown"}
           </button>
 
           <button
