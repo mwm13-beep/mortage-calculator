@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    // Works for both browser app & serverless functions
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "jsx": "react-jsx",
+
+    "strict": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+
+    // Make Vite and Node globals available to the type system
+    "types": ["vite/client", "node"]
+  },
+  "include": [
+    "src",
+    "api",              // your Vercel functions (e.g., api/mortgage.ts)
+    "src/vite-env.d.ts",
+    "vite.config.*"
+  ],
+  "exclude": ["dist", "node_modules"]
+}
