@@ -185,7 +185,7 @@ export default function App() {
             aria-expanded={showBreakdown}
             disabled={loading || hasErrors}
           >
-            {showBreakdown ? "Hide" : "Show"} breakdown
+            {loading ? "Calculating…" : (showBreakdown ? "Hide Breakdown" : "Show Breakdown")}
           </button>
 
           <button
