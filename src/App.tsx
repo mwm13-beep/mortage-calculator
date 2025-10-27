@@ -17,7 +17,7 @@ type Breakdown = {
 };
 
 export default function App() {
-  const [rulesetCode] = useState<RulesetCode>("CA-default");
+  const [rulesetCode] = useState<RulesetCode>("CA");
   const [payment, setPayment] = useState<number|null>(null);
   const [amortization, setAmortization] = useState<number|null>(null);
   const [breakdown, setBreakdown] = useState<Breakdown|null>(null);
@@ -147,7 +147,7 @@ export default function App() {
             </div>
           </fieldset>
 
-          {rulesetCode === "CA-default" && (
+          {rulesetCode === "CA" && (
             <fieldset className="card">
               <legend>Canada-specific</legend>
               <div className="row gap">
