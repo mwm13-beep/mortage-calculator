@@ -206,32 +206,32 @@ export default function App() {
                 Insurance status: <strong>{derived.insured ? "Insured (CMHC)" : "Uninsured"}</strong>
               </p>
             )}
+            {showBreakdown && breakdown && (
+              <div className="calc-breakdown">
+                <h3>How we calculated your payment</h3>
+                <p><code>Payment = P · r / (1 − (1 + r)<sup>−n</sup>)</code></p>
+                <ul>
+                  <li>Principal <strong>P</strong> = ${breakdown.principal.toFixed(2)}</li>
+                  <li>Annual rate = {breakdown.annualRatePercent.toFixed(3)}%</li>
+                  <li>Monthly rate <strong>r</strong> = { (breakdown.monthlyRateDecimal * 100).toFixed(3) }%</li>
+                  <li>Payments per year = {breakdown.paymentsPerYear}</li>
+                  <li>Total payments <strong>n</strong> = {breakdown.totalPayments}</li>
+                </ul>
+                <p>
+                  Plugging the numbers into the formula gives{" "}
+                  <strong>${breakdown.paymentViaFormula.toFixed(2)}</strong>
+                  {payment !== null && Math.abs(payment - breakdown.paymentViaFormula) > 0.01
+                    ? " (slight difference due to rounding)"
+                    : ""}
+                </p>
+              </div>
+            )}
           </div>
         )}
         {pdfUrl && (
           <object data={pdfUrl} type="application/pdf" width="100%" height="600">
             <p>Can’t display PDF. <a href={pdfUrl} target="_blank" rel="noreferrer">Open</a></p>
           </object>
-        )}
-        {showBreakdown && breakdown && (
-          <div className="calc-breakdown">
-            <h3>How we calculated your payment</h3>
-            <p><code>Payment = P · r / (1 − (1 + r)<sup>−n</sup>)</code></p>
-            <ul>
-              <li>Principal <strong>P</strong> = ${breakdown.principal.toFixed(2)}</li>
-              <li>Annual rate = {breakdown.annualRatePercent.toFixed(3)}%</li>
-              <li>Monthly rate <strong>r</strong> = { (breakdown.monthlyRateDecimal * 100).toFixed(3) }%</li>
-              <li>Payments per year = {breakdown.paymentsPerYear}</li>
-              <li>Total payments <strong>n</strong> = {breakdown.totalPayments}</li>
-            </ul>
-            <p>
-              Plugging in the numbers gives{" "}
-              <strong>${breakdown.paymentViaFormula.toFixed(2)}</strong>
-              {payment !== null && Math.abs(payment - breakdown.paymentViaFormula) > 0.01
-                ? " (slight difference due to rounding)"
-                : ""}
-            </p>
-          </div>
         )}
       </div>
     </div>

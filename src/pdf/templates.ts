@@ -25,15 +25,16 @@ export function renderMortgagePdf(
   // Inputs
   push("Inputs:");
   push(`  Principal (P): ${ok.breakdown.principal}`);
-  push(`  Annual rate:   ${ok.breakdown.annualRatePercent}`);
-  push(`  Payments/year: ${ok.breakdown.paymentsPerYear}`);
-  push(`  Total payments (n): ${ok.breakdown.totalPayments}`);
+  push(`  Annual interest rate:   ${ok.breakdown.annualRatePercent}`);
+  push(`  Payments per year: ${ok.breakdown.paymentsPerYear}`);
+  push(`  Amortization: ${ok.amortization} yrs`);
   push("");
 
   // Results
   push("Results:");
-  push(`  Payment: ${ok.payment}`);
-  push(`  Amortization: ${ok.amortization} yrs`);
+  push(`  Annual interest rate / Payments per year = Monthly interest rate (r): ${ok.breakdown.monthlyRateDecimal} (as decimal)`);
+  push(`  Payments per year * Amortization = Total payments (n): ${ok.breakdown.totalPayments}`);
+  push(`  P · r / (1 − (1 + r) − n) = Monthly Payment of ${ok.payment}`);
   if (typeof ok.derived?.insured === "boolean") {
     push(`  Insured: ${ok.derived.insured ? "Yes (CMHC)" : "No"}`);
   }
