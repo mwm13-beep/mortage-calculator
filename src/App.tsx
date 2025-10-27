@@ -47,12 +47,24 @@ export default function App() {
     setValue("rulesetCode", rulesetCode);
   }, [rulesetCode, setValue]);
 
+  useEffect(() => {
+    return () => {
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+    };
+  }, [pdfUrl]);
+
   function clearResult() {
+    if (pdfUrl) {
+      URL.revokeObjectURL(pdfUrl);
+    } 
     setPayment(null);
     setAmortization(null);
     setBreakdown(null);
     setDerived(null);
     setPdfUrl(null);
+    setShowBreakdown(false);
   }
 
   function applyOk(ok: ResponseOk | null) {
@@ -190,6 +202,13 @@ export default function App() {
           >
             {showBreakdown ? "Hide" : "Show"} breakdown
           </button>
+          <button
+            type="button"
+            onClick={() =>clearResult()}
+            disabled={loading}
+          >
+            {loading ? "Calculating…" : "Clear"}
+          </button>
         </div>
         </form>
         {payment !== null && amortization !== null && (
@@ -220,7 +239,7 @@ export default function App() {
                   <li>Total payments <strong>n</strong> = {breakdown.totalPayments}</li>
                 </ul>
                 <p>
-                  Plugging the numbers into the formula gives{" "}
+                  Plugging the numbers into the formula gives a monthly payment of{" "}
                   <strong>${breakdown.paymentViaFormula.toFixed(2)}</strong>
                   {payment !== null && Math.abs(payment - breakdown.paymentViaFormula) > 0.01
                     ? " (slight difference due to rounding)"
