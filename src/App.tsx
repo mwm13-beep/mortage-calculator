@@ -183,6 +183,7 @@ export default function App() {
             type="button"
             onClick={() => setShowBreakdown(v => !v)}
             aria-expanded={showBreakdown}
+            disabled={loading || hasErrors}
           >
             {showBreakdown ? "Hide" : "Show"} breakdown
           </button>
