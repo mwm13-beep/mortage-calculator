@@ -181,6 +181,14 @@ export default function App() {
 
           <button
             type="button"
+            onClick={() => setShowBreakdown(v => !v)}
+            aria-expanded={showBreakdown}
+          >
+            {showBreakdown ? "Hide" : "Show"} breakdown
+          </button>
+
+          <button
+            type="button"
             onClick={handleSubmit(onInline)}
             disabled={loading || hasErrors}
           >
@@ -195,13 +203,6 @@ export default function App() {
             {loading ? "Calculating…" : "Download PDF Breakdown"}
           </button>
 
-          <button
-            type="button"
-            onClick={() => setShowBreakdown(v => !v)}
-            aria-expanded={showBreakdown}
-          >
-            {showBreakdown ? "Hide" : "Show"} breakdown
-          </button>
           <button
             type="button"
             onClick={() =>clearResult()}
