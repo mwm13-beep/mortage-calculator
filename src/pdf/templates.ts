@@ -157,8 +157,11 @@ export function renderMortgagePdf(
     //   0 -14 Td   <- spacer line
     //
     // After that spacer, the "current text position" will be our bodyStartY.
+    const location = jurisdiction === "CA-Default"
+      ? "Canada"
+      : jurisdiction;
     const headerOps = [
-      `(Mortgage Breakdown    ${jurisdiction || ""}) Tj 0 -${headerLeading} Td`,
+      `(Mortgage Breakdown    ${location || ""}) Tj 0 -${headerLeading} Td`,
       `(${now.toISOString().slice(0,10)}) Tj 0 -${headerLeading} Td`,
       `0 -${bodyLeading} Td`,
     ].join("\n");
