@@ -6,7 +6,7 @@ import { RULESETS, type RulesetCode } from "./rulesets";
 import { ResponseOk } from "./schemas/responseFactory";
 import { useCalculatedResults } from "./hooks/useCalculatedResults"
 
-// shape for the on-demand breakdown panel
+// shape for the on-demand breakdown panel 
 type Breakdown = {
   principal: number;            // P
   annualRatePercent: number;    // sanitized %
