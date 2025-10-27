@@ -204,13 +204,13 @@ export default function App() {
             {loading ? "Calculating…" : "Download PDF Breakdown"}
           </button>
 
-          <button
+          {/* <button
             type="button"
             onClick={() =>clearResult()}
             disabled={loading}
           >
             {loading ? "Calculating…" : "Clear"}
-          </button>
+          </button> */}
         </div>
         </form>
         {payment !== null && amortization !== null && (
