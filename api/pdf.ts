@@ -22,7 +22,7 @@ export default async function handler(req: Request): Promise<Response> {
   try {
     const rawBody = await parseJsonBody(req);
 
-    const code = isRulesetCode(rawBody?.rulesetCode) ? (rawBody as any).rulesetCode : "CA-default";
+    const code = isRulesetCode(rawBody?.rulesetCode) ? (rawBody as any).rulesetCode : "CA-Default";
     const schema = createSchemaForRuleset(code);
     const parsed = schema.safeParse(rawBody);
     if (!parsed.success) {

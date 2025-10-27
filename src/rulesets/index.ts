@@ -1,7 +1,7 @@
 import { caDefault } from "./ca";
 
 export const RULESETS = {
-  "CA-default": caDefault,
+  "CA-Default": caDefault,
 } as const;
 
 export type RulesetCode = keyof typeof RULESETS;

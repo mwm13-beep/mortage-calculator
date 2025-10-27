@@ -9,7 +9,7 @@ vi.mock("../../api/_util/http", async () => {
     baseHeaders: (req: Request, ct?: string) => actual.baseHeaders(req, ct),
     guardMethod: vi.fn(() => null),
     guardJson: vi.fn(() => null),
-    parseJsonBody: vi.fn(async () => ({ rulesetCode: "CA-default" })),
+    parseJsonBody: vi.fn(async () => ({ rulesetCode: "CA-Default" })),
     applyRateLimit: vi.fn(async () => null),
     sendError: vi.fn((req: Request, http: number) => new Response(JSON.stringify({ error: http }), { status: http })),
   };
@@ -48,7 +48,7 @@ describe("api/mortgage.ts handler", () => {
     const req = new Request(URL_M, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ rulesetCode: "CA-default" }),
+      body: JSON.stringify({ rulesetCode: "CA-Default" }),
     });
 
     const resp = await handler(req);

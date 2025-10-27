@@ -2,10 +2,10 @@ import { describe, it, expect } from "vitest";
 import { computeWithDerived } from "../../src/engine";
 import { makeOk } from "../../src/schemas/responseFactory";
 
-describe("unit:makeOk wire shape with CA-default", () => {
+describe("unit:makeOk wire shape with CA-Default", () => {
   it("is stable and contains expected fields", () => {
     const r = computeWithDerived({
-      rulesetCode: "CA-default",
+      rulesetCode: "CA-Default",
       loanAmount: 500000, downPayment: 100000,
       rate: 5.25, term: 5, amortization: 25,
       firstTimeBuyer: false, newBuild: false

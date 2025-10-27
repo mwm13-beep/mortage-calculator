@@ -1,7 +1,7 @@
 import type { RulesetCode } from "../rulesets";
 
 export type DerivedMap = {
-  "CA-default": { insured: boolean };
+  "CA-Default": { insured: boolean };
   // Add other jurisdictions here as you introduce them…
 };
 

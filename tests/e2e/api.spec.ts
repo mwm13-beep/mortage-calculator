@@ -11,7 +11,7 @@ const WARMUP    = Number(process.env.E2E_WARMUP ?? 1);   // how many warm-ups be
 const RUNS      = Number(process.env.E2E_RUNS ?? 2);     // how many timed runs (avg/p95)
 
 const valid = {
-  rulesetCode: "CA-default",
+  rulesetCode: "CA-Default",
   loanAmount: 500000, downPayment: 100000,
   rate: 5.25, term: 5, amortization: 25,
   firstTimeBuyer: false, newBuild: false,

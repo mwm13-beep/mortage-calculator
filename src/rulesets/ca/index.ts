@@ -37,7 +37,7 @@ const caPlugin: RulesetPlugin<BaseInput & z.infer<typeof extras>, EngineResult> 
 };
 
 export const caDefault = defineRuleset({
-  code: "CA-default",
+  code: "CA-Default",
   currency: "CAD",
   paymentsPerYear: 12,
   loanBounds: { min: 0.01, max: 1_000_000_000 },
