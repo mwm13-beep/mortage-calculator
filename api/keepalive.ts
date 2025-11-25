@@ -2,7 +2,7 @@
 export const config = { runtime: "edge" };
 
 import { Redis } from "@upstash/redis";
-import { baseHeaders, sendError } from "./_util/http";
+import { baseHeaders, sendError, ApiErrorCode } from "./_util/http";
 
 const url   = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL!;
 const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN!;
@@ -26,7 +26,7 @@ export default async function handler(req: Request) {
     await redis.ping();
     return new Response(null, { status: 204, headers });
   } catch (e) {
-    // still reply 204 to keep cron quiet; log happens inside sendError if you prefer
-    return new Response(null, { status: 204, headers });
+    console.error("keepalive error", e);
+    return sendError(req, 500, "KEEPALIVE_FAILED", { msg: "Redis ping failed" });
   }
 }
