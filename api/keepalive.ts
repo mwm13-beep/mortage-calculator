@@ -22,8 +22,17 @@ export default async function handler(req: Request) {
 
   try {
     const redis = new Redis({ url, token });
-    await redis.set("heartbeat", Date.now().toString(), { ex: 60 * 60 * 24 * 21 });
-    await redis.ping();
+    const now = new Date();
+    const timestamp = now.toISOString();
+
+    // Latest heartbeat (for quick check)
+    await redis.set("heartbeat:last", timestamp, { ex: 60 * 60 * 24 * 10 });
+
+    // Rolling history (each run gets its own key)
+    await redis.set(`heartbeat:${timestamp}`, "ok", {
+      ex: 60 * 60 * 24 * 10, // 10 days
+    });
+
     return new Response(null, { status: 204, headers });
   } catch (e) {
     console.error("keepalive error", e);
