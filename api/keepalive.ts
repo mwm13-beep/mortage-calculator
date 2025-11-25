@@ -2,7 +2,7 @@
 export const config = { runtime: "edge" };
 
 import { Redis } from "@upstash/redis";
-import { baseHeaders, sendError, ApiErrorCode } from "./_util/http";
+import { baseHeaders, sendError } from "./_util/http";
 
 const url   = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL!;
 const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN!;
@@ -12,7 +12,7 @@ export default async function handler(req: Request) {
 
   // allow only POST (and preflight)
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers });
-  if (req.method !== "POST") return sendError(req, 405, "METHOD_NOT_ALLOWED", { msg: "POST required" });
+  if (req.method !== "POST" && req.method !== "GET") return sendError(req, 405, "METHOD_NOT_ALLOWED", { msg: "POST required" });
 
   // simple bearer auth (server-to-server cron)
   const auth = req.headers.get("authorization") || "";
